@@ -11,6 +11,8 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
 
+#include "BufferStructs.h"
+
 // For the DirectX Math library
 using namespace DirectX;
 
@@ -21,7 +23,23 @@ using namespace DirectX;
 void Game::Initialize()
 {
 	CreateRootSigAndPipelineState();
-	CreateGeometry();
+
+	meshMap["Cube"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/cube.obj").c_str());
+	meshMap["Helix"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/helix.obj").c_str());
+	meshMap["Sphere"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/sphere.obj").c_str());
+	meshMap["Torus"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/torus.obj").c_str());
+	
+	entities.push_back(Entity(meshMap["Cube"]));
+	entities.push_back(Entity(meshMap["Helix"]));
+	entities.push_back(Entity(meshMap["Sphere"]));
+	entities.push_back(Entity(meshMap["Torus"]));
+
+	entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
+	entities[1].SetWorldTM(Transform(XMFLOAT3(-2, 0, 4)));
+	entities[2].SetWorldTM(Transform(XMFLOAT3(2, 0, 4)));
+	entities[3].SetWorldTM(Transform(XMFLOAT3(6, 0, 4)));
+
+	cam = Camera();
 }
 
 
@@ -58,7 +76,7 @@ void Game::CreateRootSigAndPipelineState()
 	}
 
 	// Input layout
-	const unsigned int inputElementCount = 2;
+	const unsigned int inputElementCount = 4;
 	D3D12_INPUT_ELEMENT_DESC inputElements[inputElementCount] = {};
 	{
 		// Create an input layout that describes the vertex format
@@ -66,26 +84,53 @@ void Game::CreateRootSigAndPipelineState()
 		// - This is used by the pipeline to know how to interpret the raw data
 		// sitting inside a vertex buffer
 
-		// Set up the first element - a position, which is 3 float values
+		// position
 		inputElements[0].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
-		inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-		inputElements[0].SemanticName = "POSITION";
-		inputElements[0].SemanticIndex = 0;
+		inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT; // float3
+		inputElements[0].SemanticName = "POSITION";            // must match semantic in shader
+		inputElements[0].SemanticIndex = 0;                    // first POSITION semantic
 
-		// Set up the second element - a color, which is 4 more float values
+		// normal
 		inputElements[1].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
-		inputElements[1].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		inputElements[1].SemanticName = "COLOR";
+		inputElements[1].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+		inputElements[1].SemanticName = "NORMAL";
 		inputElements[1].SemanticIndex = 0;
+
+		// uv
+		inputElements[2].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+		inputElements[2].Format = DXGI_FORMAT_R32G32_FLOAT;
+		inputElements[2].SemanticName = "TEXCOORD";
+		inputElements[2].SemanticIndex = 0;
+
+		// tangent
+		inputElements[3].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+		inputElements[3].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+		inputElements[3].SemanticName = "TANGENT";
+		inputElements[3].SemanticIndex = 0;
 	}
 
 	// Root Signature
 	{
-		// Describe and serialize the root signature
+		// Define a table of CBV's (constant buffer views)
+		D3D12_DESCRIPTOR_RANGE cbvTable = {};
+		cbvTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		cbvTable.NumDescriptors = 1;
+		cbvTable.BaseShaderRegister = 0;
+		cbvTable.RegisterSpace = 0;
+		cbvTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		// Define the root parameter
+		D3D12_ROOT_PARAMETER rootParam = {};
+		rootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+		rootParam.DescriptorTable.NumDescriptorRanges = 1;
+		rootParam.DescriptorTable.pDescriptorRanges = &cbvTable;
+
+		// Describe the overall the root signature
 		D3D12_ROOT_SIGNATURE_DESC rootSig = {};
 		rootSig.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSig.NumParameters = 0;
-		rootSig.pParameters = 0;
+		rootSig.NumParameters = 1;
+		rootSig.pParameters = &rootParam;
 		rootSig.NumStaticSamplers = 0;
 		rootSig.pStaticSamplers = 0;
 
@@ -189,63 +234,14 @@ void Game::CreateRootSigAndPipelineState()
 }
 
 // --------------------------------------------------------
-// Creates the geometry we're going to draw
-// --------------------------------------------------------
-void Game::CreateGeometry()
-{
-	// Create some temporary variables to represent colors
-	// - Not necessary, just makes things more readable
-	XMFLOAT4 red = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-	XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
-
-	// Set up the vertices of the triangle we would like to draw
-	// - We're going to copy this array, exactly as it exists in CPU memory
-	//    over to a Direct3D-controlled data structure on the GPU (the vertex buffer)
-	// - Note: Since we don't have a camera or really any concept of
-	//    a "3d world" yet, we're simply describing positions within the
-	//    bounds of how the rasterizer sees our screen: [-1 to +1] on X and Y
-	// - This means (0,0) is at the very center of the screen.
-	// - These are known as "Normalized Device Coordinates" or "Homogeneous 
-	//    Screen Coords", which are ways to describe a position without
-	//    knowing the exact size (in pixels) of the image/window/etc.  
-	// - Long story short: Resizing the window also resizes the triangle,
-	//    since we're describing the triangle in terms of the window itself
-	Vertex vertices[] =
-	{
-		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), red },
-		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), blue },
-		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), green },
-	};
-
-	// Set up indices, which tell us which vertices to use and in which order
-	// - This is redundant for just 3 vertices, but will be more useful later
-	// - Indices are technically not required if the vertices are in the buffer 
-	//    in the correct order and each one will be used exactly once
-	// - But just to see how it's done...
-	unsigned int indices[] = { 0, 1, 2 };
-
-	// Create the two buffers
-	vertexBuffer = Graphics::CreateStaticBuffer(sizeof(Vertex), ARRAYSIZE(vertices), vertices);
-	indexBuffer = Graphics::CreateStaticBuffer(sizeof(unsigned int), ARRAYSIZE(indices), indices);
-
-	// Set up the views
-	vbView.StrideInBytes = sizeof(Vertex);
-	vbView.SizeInBytes = sizeof(Vertex) * ARRAYSIZE(vertices);
-	vbView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-
-	ibView.Format = DXGI_FORMAT_R32_UINT;
-	ibView.SizeInBytes = sizeof(unsigned int) * ARRAYSIZE(indices);
-	ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-}
-
-
-// --------------------------------------------------------
 // Handle resizing to match the new window size
 //  - Eventually, we'll want to update our 3D camera
 // --------------------------------------------------------
 void Game::OnResize()
 {
+	// Rezize camera projection matrix
+	cam.UpdateProjectionMatrix((float)Window::Width(), (float)Window::Height());
+
 	// Resize the viewport and scissor rectangle
 	{
 		viewport = {};
@@ -272,6 +268,17 @@ void Game::OnResize()
 // --------------------------------------------------------
 void Game::Update(float deltaTime, float totalTime)
 {
+	// rotate entities on their Y axes
+	for (Entity& e : entities)
+	{
+		Transform t = e.GetWorldTM();
+		t.Rotate(0, deltaTime, 0);
+		e.SetWorldTM(t);
+	}
+
+	// update camera state
+	cam.Update(deltaTime);
+
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
@@ -319,6 +326,9 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	// Rendering here!
 	{
+		// set descriptor heap for CBVs
+		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::cbvSrvDescriptorHeap.GetAddressOf());
+
 		// Set overall pipeline state
 		Graphics::CommandList->SetPipelineState(pipelineState.Get());
 
@@ -330,12 +340,33 @@ void Game::Draw(float deltaTime, float totalTime)
 			1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
 		Graphics::CommandList->RSSetViewports(1, &viewport);
 		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
-		Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
-		Graphics::CommandList->IASetIndexBuffer(&ibView);
 		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// Draw
-		Graphics::CommandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+		VSExternalData data = {};
+		data.proj = cam.GetProjection();
+		data.view = cam.GetView();
+
+		// render entities
+		for (Entity& e : entities)
+		{
+			std::shared_ptr<Mesh> mesh = e.GetMesh();
+
+			// set VS data world matrix
+			data.world = e.GetWorldTM().GetWorldMatrix();
+
+			// copy VS data into CB ring buffer and set root descriptor table to it
+			D3D12_GPU_DESCRIPTOR_HANDLE cbvHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&data, sizeof(data));
+			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+
+			// set VB and IB
+			D3D12_VERTEX_BUFFER_VIEW vbView = mesh->GetVertexBufferView();
+			D3D12_INDEX_BUFFER_VIEW ibView = mesh->GetIndexBufferView();
+			Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
+			Graphics::CommandList->IASetIndexBuffer(&ibView);
+
+			// draw
+			Graphics::CommandList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
+		}
 	}
 
 	// Present

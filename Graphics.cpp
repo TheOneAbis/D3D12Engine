@@ -21,6 +21,15 @@ namespace Graphics
 
 		D3D_FEATURE_LEVEL featureLevel{};
 		unsigned int currentBackBufferIndex = 0;
+
+		// Descriptor heap management
+		SIZE_T cbvSrvDescriptorHeapIncrementSize = 0;
+		unsigned int cbvDescriptorOffset = 0;
+
+		// CB upload heap management
+		UINT64 cbUploadHeapSizeInBytes = 0;
+		UINT64 cbUploadHeapOffsetInBytes = 0;
+		void* cbUploadHeapStartAddress = 0;
 	}
 }
 
@@ -274,11 +283,150 @@ HRESULT Graphics::Initialize(unsigned int windowWidth, unsigned int windowHeight
 		WaitFenceCounter = 0;
 	}
 
+	// Create the CBV/SRV descriptor heap
+	{
+		// Ask the device for the increment size for CBV descriptor heaps
+		// This can vary by GPU so we need to query for it
+		cbvSrvDescriptorHeapIncrementSize =
+			(SIZE_T)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		// Describe the descriptor heap we want to make
+		D3D12_DESCRIPTOR_HEAP_DESC dhDesc = {};
+		dhDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // Shaders can see these!
+		dhDesc.NodeMask = 0; // Node here means physical GPU - we only have 1 so its index is 0
+		dhDesc.NumDescriptors = maxConstantBuffers; // How many descriptors will we need?
+		dhDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV; // This heap can store CBVs, SRVs and UAVs
+
+		Device->CreateDescriptorHeap(&dhDesc, IID_PPV_ARGS(cbvSrvDescriptorHeap.GetAddressOf()));
+
+		// Assume the first CBV will be at the beginning of the heap
+		// This will increase as we use more CBVs and will wrap back to 0
+		cbvDescriptorOffset = 0;
+	}
+
+	// Create an upload heap for constant buffer data
+	{
+		// This heap MUST have a size that is a multiple of 256
+		// We'll support up to the max number of CBs if they're
+		// all 256 bytes or less, or fewer overall CBs if they're larger
+		cbUploadHeapSizeInBytes = (UINT64)maxConstantBuffers * 256;
+
+		// Assume the first CB will start at the beginning of the heap
+		// This offset changes as we use more CBs, and wraps around when full
+		cbUploadHeapOffsetInBytes = 0;
+
+		// Create the upload heap for our constant buffer
+		D3D12_HEAP_PROPERTIES heapProps = {};
+		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		heapProps.CreationNodeMask = 1;
+		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		heapProps.Type = D3D12_HEAP_TYPE_UPLOAD; // Upload heap since we'll be copying often!
+		heapProps.VisibleNodeMask = 1;
+
+		// Fill out description
+		D3D12_RESOURCE_DESC resDesc = {};
+		resDesc.Alignment = 0;
+		resDesc.DepthOrArraySize = 1;
+		resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		resDesc.Format = DXGI_FORMAT_UNKNOWN;
+		resDesc.Height = 1;
+		resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		resDesc.MipLevels = 1;
+		resDesc.SampleDesc.Count = 1;
+		resDesc.SampleDesc.Quality = 0;
+		resDesc.Width = cbUploadHeapSizeInBytes; // Must be 256 byte aligned!
+
+		// Create a constant buffer resource heap
+		Device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			0,
+			IID_PPV_ARGS(cbUploadHeap.GetAddressOf()));
+
+		// Keep mapped!
+		D3D12_RANGE range{ 0, 0 };
+		cbUploadHeap->Map(0, &range, &cbUploadHeapStartAddress);
+	}
+
 	// Wait for the GPU before we proceed
 	WaitForGPU();
 	apiInitialized = true;
 
 	return S_OK;
+}
+
+// --------------------------------------------------------
+// Copies the given data into the next "unused" spot in the CBV upload heap (wrapping at the end, since
+// we treat it like a ring buffer). Then creates a CBV in the next "unused" spot in the CBV heap that
+// points to the aforementioned spot in the upload heap and returns that CBV (a GPU descriptor handle).
+//
+// data - The data to copy to the GPU
+// dataSizeInBytes - The byte size of the data to copy
+// --------------------------------------------------------
+D3D12_GPU_DESCRIPTOR_HANDLE Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
+	void* data, unsigned int dataSizeInBytes)
+{
+	// How much space will we need? Each CBV must point to a chunk of the upload heap that is
+	// a multiple of 256 bytes, so we need to calculate and reserve that amount.
+	SIZE_T reservationSize = (SIZE_T)dataSizeInBytes;
+	reservationSize = (reservationSize + 255) / 256 * 256; // Integer division trick
+
+	// Ensure this upload will fit in the remaining space. If not, reset to beginning.
+	if (cbUploadHeapOffsetInBytes + reservationSize >= cbUploadHeapSizeInBytes)
+		cbUploadHeapOffsetInBytes = 0;
+
+	// Where in the upload heap will this data go?
+	D3D12_GPU_VIRTUAL_ADDRESS virtualGPUAddress = cbUploadHeap->GetGPUVirtualAddress() + cbUploadHeapOffsetInBytes;
+
+	// === Copy data to the upload heap ===
+	{
+		// Calculate the actual upload address (which we got from mapping the buffer)
+		// Note that this is different than the GPU virtual address needed for the CBV below
+		void* uploadAddress = reinterpret_cast<void*>(
+			(SIZE_T)cbUploadHeapStartAddress + cbUploadHeapOffsetInBytes);
+
+		// Perform the mem copy to put new data into this part of the heap
+		memcpy(uploadAddress, data, dataSizeInBytes);
+
+		// Increment the offset and loop back to the beginning if necessary,
+		// allowing us to treat the upload heap like a ring buffer
+		cbUploadHeapOffsetInBytes += reservationSize;
+		if (cbUploadHeapOffsetInBytes >= cbUploadHeapSizeInBytes)
+			cbUploadHeapOffsetInBytes = 0;
+	}
+
+	// Create a CBV for this section of the heap
+	{
+		// Calculate the CPU and GPU side handles for this descriptor
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = cbvSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = cbvSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+
+		// Offset each by based on how many descriptors we've used
+		// Note: cbvDescriptorOffset is a COUNT of descriptors, not bytes so we must calculate the size
+		cpuHandle.ptr += (SIZE_T)cbvDescriptorOffset * cbvSrvDescriptorHeapIncrementSize;
+		gpuHandle.ptr += (SIZE_T)cbvDescriptorOffset * cbvSrvDescriptorHeapIncrementSize;
+
+		// Describe the constant buffer view that points to our latest chunk of the CB upload heap
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = virtualGPUAddress;
+		cbvDesc.SizeInBytes = (UINT)reservationSize;
+
+		// Create the CBV, which is a lightweight operation in DX12
+		Device->CreateConstantBufferView(&cbvDesc, cpuHandle);
+
+		// Increment the offset and loop back to the beginning if necessary
+		// which allows us to treat the descriptor heap as a ring buffer
+		cbvDescriptorOffset++;
+		if (cbvDescriptorOffset >= maxConstantBuffers)
+			cbvDescriptorOffset = 0;
+
+		// Now that the CBV is ready, we return the GPU handle to it
+		// so it can be set as part of the root signature during drawing
+		return gpuHandle;
+	}
 }
 
 // --------------------------------------------------------
@@ -292,7 +440,6 @@ HRESULT Graphics::Initialize(unsigned int windowWidth, unsigned int windowHeight
 void Graphics::ShutDown()
 {
 }
-
 
 // --------------------------------------------------------
 // When the window is resized, the underlying 

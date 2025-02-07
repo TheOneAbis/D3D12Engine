@@ -14,6 +14,11 @@ namespace Graphics
 	// --- CONSTANTS ---
 	const unsigned int NumBackBuffers = 2;
 
+	// Maximum number of constant buffers, assuming each buffer
+	// is 256 bytes or less. Larger buffers are fine, but will
+	// result in fewer buffers in use at any time
+	const unsigned int maxConstantBuffers = 1000;
+
 	// --- GLOBAL VARS ---
 
 	// Primary D3D12 API objects
@@ -33,6 +38,10 @@ namespace Graphics
 	inline Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;
 	inline D3D12_CPU_DESCRIPTOR_HANDLE DSVHandle{};
 
+	// Constant ring buffers & descriptors
+	inline Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> cbvSrvDescriptorHeap;
+	inline Microsoft::WRL::ComPtr<ID3D12Resource> cbUploadHeap;
+
 	// Basic CPU/GPU synchronization
 	inline Microsoft::WRL::ComPtr<ID3D12Fence> WaitFence;
 	inline HANDLE WaitFenceEvent = 0;
@@ -46,6 +55,9 @@ namespace Graphics
 
 	// General functions
 	void AdvanceSwapChainIndex();
+	D3D12_GPU_DESCRIPTOR_HANDLE FillNextConstantBufferAndGetGPUDescriptorHandle(
+		void* data,
+		unsigned int dataSizeInBytes);
 
 	// Resource creation
 	Microsoft::WRL::ComPtr<ID3D12Resource> CreateStaticBuffer(size_t dataStride, size_t dataCount, void* data);
