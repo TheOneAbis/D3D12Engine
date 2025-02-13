@@ -527,8 +527,7 @@ void Game::Draw(float deltaTime, float totalTime)
 			vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
 		Graphics::AdvanceSwapChainIndex();
 
-		// Wait for the GPU to be done and then reset the command list & allocator
-		Graphics::WaitForGPU();
-		Graphics::ResetAllocatorAndCommandList();
+		// Work ahead on the next frame; program will halt only if CPU is too far ahead of GPU
+		Graphics::ResetAllocatorAndCommandList(Graphics::SwapChainIndex());
 	}
 }

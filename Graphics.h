@@ -26,7 +26,7 @@ namespace Graphics
 	inline Microsoft::WRL::ComPtr<IDXGISwapChain> SwapChain;
 
 	// Command submission
-	inline Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CommandAllocator;
+	inline Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CommandAllocators[NumBackBuffers];
 	inline Microsoft::WRL::ComPtr<ID3D12CommandQueue> CommandQueue;
 	inline Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> CommandList;
 
@@ -46,6 +46,11 @@ namespace Graphics
 	inline Microsoft::WRL::ComPtr<ID3D12Fence> WaitFence;
 	inline HANDLE WaitFenceEvent = 0;
 	inline UINT64 WaitFenceCounter = 0;
+
+	// Frame sync fence
+	inline Microsoft::WRL::ComPtr<ID3D12Fence> FrameSyncFence;
+	inline HANDLE FrameSyncFenceEvent = 0;
+	inline UINT64 FrameSyncFenceCounters[NumBackBuffers] {};
 
 	// Maximum number of texture descriptors (SRVs) we can have.
 	// Each material will have a chunk of this,
@@ -75,7 +80,7 @@ namespace Graphics
 	Microsoft::WRL::ComPtr<ID3D12Resource> CreateStaticBuffer(size_t dataStride, size_t dataCount, void* data);
 
 	// Command list & synchronization
-	void ResetAllocatorAndCommandList();
+	void ResetAllocatorAndCommandList(int allocatorIndex);
 	void CloseAndExecuteCommandList();
 	void WaitForGPU();
 

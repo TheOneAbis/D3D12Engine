@@ -13,8 +13,6 @@ Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState,
 	this->uvOffset = uvOffset;
 
 	finalGPUHandleForSRVs = {};
-	for (int i = 0; i < 4; i++)
-		textureSRVsBySlot[i] = {};
 }
 
 DirectX::XMFLOAT3 Material::GetColorTint()
