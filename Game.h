@@ -8,6 +8,7 @@
 
 #include "Camera.h"
 #include "Entity.h"
+#include "Light.h"
 
 class Game
 {
@@ -45,5 +46,7 @@ private:
 	Camera cam;
 	std::vector<Entity> entities;
 	std::unordered_map<std::string, std::shared_ptr<Mesh>> meshMap;
+	std::unordered_map<std::string, std::shared_ptr<Material>> materialMap;
+	std::vector<Light> lights;
 };
 

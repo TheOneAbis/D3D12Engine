@@ -24,22 +24,83 @@ void Game::Initialize()
 {
 	CreateRootSigAndPipelineState();
 
-	meshMap["Cube"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/cube.obj").c_str());
-	meshMap["Helix"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/helix.obj").c_str());
-	meshMap["Sphere"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/sphere.obj").c_str());
-	meshMap["Torus"] = std::make_shared<Mesh>(FixPath(L"../../Basic Meshes/torus.obj").c_str());
+	// create meshes
+	meshMap["SM_Cube"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/cube.obj").c_str());
+	meshMap["SM_Helix"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/helix.obj").c_str());
+	meshMap["SM_Sphere"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/sphere.obj").c_str());
+	meshMap["SM_Torus"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/torus.obj").c_str());
 	
-	entities.push_back(Entity(meshMap["Cube"]));
-	entities.push_back(Entity(meshMap["Helix"]));
-	entities.push_back(Entity(meshMap["Sphere"]));
-	entities.push_back(Entity(meshMap["Torus"]));
+	// create materials
+	// wood
+	std::shared_ptr<Material> mat = std::make_shared<Material>(pipelineState, XMFLOAT3(1, 1, 1), XMFLOAT2(1, 1), XMFLOAT2(0, 0));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Wood"] = mat;
 
+	// paint
+	mat = std::make_shared<Material>(pipelineState, XMFLOAT3(1, 1, 1), XMFLOAT2(1, 1), XMFLOAT2(0, 0));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Paint"] = mat;
+
+	// rock
+	mat = std::make_shared<Material>(pipelineState, XMFLOAT3(1, 1, 1), XMFLOAT2(1, 1), XMFLOAT2(0, 0));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Rock"] = mat;
+
+	// scratched
+	mat = std::make_shared<Material>(pipelineState, XMFLOAT3(1, 1, 1), XMFLOAT2(1, 1), XMFLOAT2(0, 0));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Scratched"] = mat;
+
+	// create entities
+	entities.push_back(Entity(meshMap["SM_Cube"], materialMap["M_Wood"]));
+	entities.push_back(Entity(meshMap["SM_Helix"], materialMap["M_Paint"]));
+	entities.push_back(Entity(meshMap["SM_Sphere"], materialMap["M_Rock"]));
+	entities.push_back(Entity(meshMap["SM_Torus"], materialMap["M_Scratched"]));
+
+	// set entity transforms
 	entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
 	entities[1].SetWorldTM(Transform(XMFLOAT3(-2, 0, 4)));
 	entities[2].SetWorldTM(Transform(XMFLOAT3(2, 0, 4)));
 	entities[3].SetWorldTM(Transform(XMFLOAT3(6, 0, 4)));
 
+	// Create camera
 	cam = Camera();
+
+	// Create lights
+	Light dirLight;
+	dirLight.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight.Direction = { -0.5f, -1, 0 };
+	dirLight.Color = { 1, 1, 1 };
+	dirLight.Intensity = 1.f;
+	lights.push_back(dirLight);
+
+	Light point;
+	point.Type = LIGHT_TYPE_POINT;
+	point.Position = { -1.f, -0.5f, 0.8f };
+	point.Color = { 1, 0, 1 };
+	point.Intensity = 5.f;
+	point.Range = 4.f;
+	lights.push_back(point);
+
+	point.Position = { 3, 0.75f, 0.5f };
+	point.Color = { 0, 1, 1 };
+	lights.push_back(point);
 }
 
 
@@ -111,28 +172,70 @@ void Game::CreateRootSigAndPipelineState()
 
 	// Root Signature
 	{
-		// Define a table of CBV's (constant buffer views)
-		D3D12_DESCRIPTOR_RANGE cbvTable = {};
-		cbvTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-		cbvTable.NumDescriptors = 1;
-		cbvTable.BaseShaderRegister = 0;
-		cbvTable.RegisterSpace = 0;
-		cbvTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		// Describe the range of CBVs needed for the vertex shader
+		D3D12_DESCRIPTOR_RANGE cbvRangeVS = {};
+		cbvRangeVS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		cbvRangeVS.NumDescriptors = 1;
+		cbvRangeVS.BaseShaderRegister = 0;
+		cbvRangeVS.RegisterSpace = 0;
+		cbvRangeVS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		// Define the root parameter
-		D3D12_ROOT_PARAMETER rootParam = {};
-		rootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-		rootParam.DescriptorTable.NumDescriptorRanges = 1;
-		rootParam.DescriptorTable.pDescriptorRanges = &cbvTable;
+		// Describe the range of CBVs needed for the pixel shader
+		D3D12_DESCRIPTOR_RANGE cbvRangePS = {};
+		cbvRangePS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		cbvRangePS.NumDescriptors = 1;
+		cbvRangePS.BaseShaderRegister = 0;
+		cbvRangePS.RegisterSpace = 0;
+		cbvRangePS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		// Describe the overall the root signature
+		// Create a range of SRV's for textures
+		D3D12_DESCRIPTOR_RANGE srvRange = {};
+		srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		srvRange.NumDescriptors = 4; // Set to max number of textures at once (match pixel shader!)
+		srvRange.BaseShaderRegister = 0; // Starts at s0 (match pixel shader!)
+		srvRange.RegisterSpace = 0;
+		srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		// Create the root parameters
+		D3D12_ROOT_PARAMETER rootParams[3] = {};
+
+		// CBV table param for vertex shader
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+		rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+		rootParams[0].DescriptorTable.pDescriptorRanges = &cbvRangeVS;
+
+		// CBV table param for pixel shader
+		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootParams[1].DescriptorTable.NumDescriptorRanges = 1;
+		rootParams[1].DescriptorTable.pDescriptorRanges = &cbvRangePS;
+
+		// SRV table param
+		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootParams[2].DescriptorTable.NumDescriptorRanges = 1;
+		rootParams[2].DescriptorTable.pDescriptorRanges = &srvRange;
+
+		// Create a single static sampler (available to all pixel shaders at the same slot)
+		D3D12_STATIC_SAMPLER_DESC anisoWrap = {};
+		anisoWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.Filter = D3D12_FILTER_ANISOTROPIC;
+		anisoWrap.MaxAnisotropy = 16;
+		anisoWrap.MaxLOD = D3D12_FLOAT32_MAX;
+		anisoWrap.ShaderRegister = 0; // register(s0)
+		anisoWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		D3D12_STATIC_SAMPLER_DESC samplers[] = { anisoWrap };
+
+		// Describe the full root signature
 		D3D12_ROOT_SIGNATURE_DESC rootSig = {};
 		rootSig.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSig.NumParameters = 1;
-		rootSig.pParameters = &rootParam;
-		rootSig.NumStaticSamplers = 0;
-		rootSig.pStaticSamplers = 0;
+		rootSig.NumParameters = ARRAYSIZE(rootParams);
+		rootSig.pParameters = rootParams;
+		rootSig.NumStaticSamplers = ARRAYSIZE(samplers);
+		rootSig.pStaticSamplers = samplers;
 
 		ID3DBlob* serializedRootSig = 0;
 		ID3DBlob* errors = 0;
@@ -329,9 +432,6 @@ void Game::Draw(float deltaTime, float totalTime)
 		// set descriptor heap for CBVs
 		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::cbvSrvDescriptorHeap.GetAddressOf());
 
-		// Set overall pipeline state
-		Graphics::CommandList->SetPipelineState(pipelineState.Get());
-
 		// Root sig (must happen before root descriptor table)
 		Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
 
@@ -350,13 +450,49 @@ void Game::Draw(float deltaTime, float totalTime)
 		for (Entity& e : entities)
 		{
 			std::shared_ptr<Mesh> mesh = e.GetMesh();
+			std::shared_ptr<Material> mat = e.GetMaterial();
 
-			// set VS data world matrix
-			data.world = e.GetWorldTM().GetWorldMatrix();
+			// VS data
+			{
+				data.world = e.GetWorldTM().GetWorldMatrix();
+				XMMATRIX worldM = XMLoadFloat4x4(&data.world);
+				XMStoreFloat4x4(&data.worldInverseTranspose, XMMatrixInverse(0, XMMatrixTranspose(worldM)));
 
-			// copy VS data into CB ring buffer and set root descriptor table to it
-			D3D12_GPU_DESCRIPTOR_HANDLE cbvHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&data, sizeof(data));
-			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+				// copy VS data into CB ring buffer and set root descriptor table to it
+				D3D12_GPU_DESCRIPTOR_HANDLE cbvHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&data, sizeof(data));
+				Graphics::CommandList->SetGraphicsRootDescriptorTable(0, cbvHandle);
+			}
+
+			// PS data and cbuffer setup
+			{
+				PSExternalData psData = {};
+				psData.uvScale = mat->GetUVScale();
+				psData.uvOffset = mat->GetUVOffset();
+				psData.cameraPosition = cam.GetTransform().GetPosition();
+				psData.ambient = XMFLOAT4(0.02f, 0.02f, 0.02f, 1);
+				psData.lightCount = (unsigned int)lights.size();
+
+				memcpy(psData.lights, &lights[0], sizeof(Light) * MAX_LIGHTS);
+
+				// Send this to a chunk of the constant buffer heap
+				// and grab the GPU handle for it so we can set it for this draw
+				D3D12_GPU_DESCRIPTOR_HANDLE cbHandlePS =
+					Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
+						(void*)(&psData), sizeof(PSExternalData));
+
+				// Set this constant buffer handle
+				// Note: This assumes that descriptor table 1 is the
+				// place to put this particular descriptor. This
+				// is based on how we set up our root signature.
+				Graphics::CommandList->SetGraphicsRootDescriptorTable(1, cbHandlePS);
+			}
+
+			// Set overall pipeline state
+			Graphics::CommandList->SetPipelineState(mat->GetPipelineState().Get());
+
+			// Set the SRV descriptor handle for this material's textures
+			// Note: This assumes that descriptor table 2 is for textures (as per our root sig)
+			Graphics::CommandList->SetGraphicsRootDescriptorTable(2, mat->GetFinalGPUHandleForSRVs());
 
 			// set VB and IB
 			D3D12_VERTEX_BUFFER_VIEW vbView = mesh->GetVertexBufferView();

@@ -16,7 +16,7 @@ Mesh::Mesh(Vertex* vertices,
 	unsigned int* indices,
 	unsigned int numIndices, bool dynamic)
 {
-	for (int i = 0; i < numVerts; i++)
+	for (unsigned int i = 0; i < numVerts; i++)
 		this->vertices.push_back(vertices[i]);
 
 	CreateBuffers(indices, numIndices);
@@ -333,7 +333,7 @@ void Mesh::CreateBuffers(unsigned int* indices, unsigned int numIndices)
 
 	// Set up views
 	vbView.StrideInBytes = sizeof(Vertex);
-	vbView.SizeInBytes = sizeof(Vertex) * this->vertices.size();
+	vbView.SizeInBytes = sizeof(Vertex) * (UINT)this->vertices.size();
 	vbView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 
 	ibView.Format = DXGI_FORMAT_R32_UINT;
