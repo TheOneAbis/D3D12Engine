@@ -18,15 +18,14 @@ private:
 protected:
 
 	// Hold num indices in index buffer
-	unsigned int indexCount;
+	int indexCount;
+	std::vector<Vertex> vertices;
 
 	void CalculateTangents(Vertex* verts, int numVerts, unsigned int* indices, int numIndices);
 
 	void CreateBuffers(unsigned int* indices, unsigned int numIndices);
 
 public:
-
-	std::vector<Vertex> vertices;
 
 	Mesh();
 
@@ -44,5 +43,6 @@ public:
 	D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView();
 	D3D12_INDEX_BUFFER_VIEW GetIndexBufferView();
 	unsigned int GetIndexCount();
+	unsigned int GetVertexCount();
 
 };

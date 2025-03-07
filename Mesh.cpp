@@ -370,3 +370,8 @@ unsigned int Mesh::GetIndexCount()
 {
 	return indexCount;
 }
+
+unsigned int Mesh::GetVertexCount()
+{
+	return (unsigned int)vertices.size();
+}
