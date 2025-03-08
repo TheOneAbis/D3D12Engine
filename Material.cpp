@@ -2,12 +2,10 @@
 
 #include "Graphics.h"
 
-Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState,
-	DirectX::XMFLOAT3 colorTint,
+Material::Material(DirectX::XMFLOAT3 colorTint,
 	DirectX::XMFLOAT2 uvScale,
 	DirectX::XMFLOAT2 uvOffset)
 {
-	this->pipelineState = pipelineState;
 	this->colorTint = colorTint;
 	this->uvScale = uvScale;
 	this->uvOffset = uvOffset;
@@ -31,11 +29,6 @@ DirectX::XMFLOAT2 Material::GetUVOffset()
 D3D12_GPU_DESCRIPTOR_HANDLE Material::GetFinalGPUHandleForSRVs()
 {
 	return finalGPUHandleForSRVs;
-}
-
-Microsoft::WRL::ComPtr<ID3D12PipelineState> Material::GetPipelineState()
-{
-	return pipelineState;
 }
 
 void Material::AddTexture(D3D12_CPU_DESCRIPTOR_HANDLE srv, int slot)

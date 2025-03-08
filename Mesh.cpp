@@ -1,6 +1,7 @@
 #include "Mesh.h"
 
 #include "Graphics.h"
+#include "RayTracing.h"
 #include <iostream>
 #include <fstream>
 
@@ -339,6 +340,9 @@ void Mesh::CreateBuffers(unsigned int* indices, unsigned int numIndices)
 	ibView.Format = DXGI_FORMAT_R32_UINT;
 	ibView.SizeInBytes = sizeof(unsigned int) * this->indexCount;
 	ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+
+	// Create the raytracing acceleration structure for this mesh
+	raytracingData = RayTracing::CreateBottomLevelAccelerationStructureForMesh(this);
 }
 
 Mesh::~Mesh()

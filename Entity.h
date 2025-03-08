@@ -19,6 +19,7 @@ public:
 
 	Transform GetWorldTM();
 	void SetWorldTM(Transform newTM);
+	void SetWorldTM(DirectX::XMFLOAT3 newPos, DirectX::XMFLOAT3 newRot, DirectX::XMFLOAT3 newScale = DirectX::XMFLOAT3(1, 1, 1));
 
 private:
 

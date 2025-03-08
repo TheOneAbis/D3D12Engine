@@ -14,8 +14,15 @@
 
 #include "BufferStructs.h"
 
+#define PI 3.1415926f
+
 // For the DirectX Math library
 using namespace DirectX;
+
+inline float RandFloat(float min, float max)
+{
+	return min + (float)rand() / ((float)RAND_MAX / (max - min));
+}
 
 // --------------------------------------------------------
 // Called once per program, after the window and graphics API
@@ -35,21 +42,25 @@ void Game::Initialize()
 	meshMap["SM_Sphere"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/sphere.obj").c_str());
 	meshMap["SM_Torus"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/torus.obj").c_str());
 
-	//// create entities
-	//entities.push_back(Entity(meshMap["SM_Cube"], nullptr));
-	//entities.push_back(Entity(meshMap["SM_Helix"], nullptr));
-	//entities.push_back(Entity(meshMap["SM_Sphere"], nullptr));
-	//entities.push_back(Entity(meshMap["SM_Torus"], nullptr));
+	// create entities
+	entities.push_back(Entity(meshMap["SM_Cube"], std::make_shared<Material>(XMFLOAT3(1, 0.5, 1))));
+	entities.push_back(Entity(meshMap["SM_Helix"], std::make_shared<Material>(XMFLOAT3(0.25, 1, 0.78))));
+	entities.push_back(Entity(meshMap["SM_Torus"], std::make_shared<Material>(XMFLOAT3(0.9, 0.4, 0.7))));
 
-	//// set entity transforms
-	//entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
-	//entities[1].SetWorldTM(Transform(XMFLOAT3(-2, 0, 4)));
-	//entities[2].SetWorldTM(Transform(XMFLOAT3(2, 0, 4)));
-	//entities[3].SetWorldTM(Transform(XMFLOAT3(6, 0, 4)));
+	// set entity transforms
+	entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
+	entities[1].SetWorldTM(Transform(XMFLOAT3(-2, 0, 4)));
+	entities[2].SetWorldTM(Transform(XMFLOAT3(2, 0, 4)));
+	
+	for (int i = 0; i < 12; i++)
+	{
+		Entity e(meshMap["SM_Sphere"], std::make_shared<Material>(XMFLOAT3(RandFloat(0, 1), RandFloat(0, 1), RandFloat(0, 1))));
+		e.SetWorldTM(XMFLOAT3(RandFloat(-4, 4), RandFloat(-4, 4), RandFloat(2, 5)), { 0, RandFloat(0, PI * 2.f), 0 }, {0.5f, 0.5f, 0.5f});
+		entities.push_back(e);
+	}
 
 	// Create a BLAS for a single mesh, then the TLAS for our “scene”
-	RayTracing::CreateBottomLevelAccelerationStructureForMesh(meshMap["SM_Sphere"].get());
-	RayTracing::CreateTopLevelAccelerationStructureForScene();
+	RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
 
 	// Finalize any initialization and wait for the GPU
 	// before proceeding to the game loop
@@ -93,6 +104,21 @@ void Game::OnResize()
 // --------------------------------------------------------
 void Game::Update(float deltaTime, float totalTime)
 {
+	Transform t = entities[0].GetWorldTM();
+	t.Rotate(0, deltaTime, 0);
+	entities[0].SetWorldTM(t);
+
+	for (int i = 3; i < entities.size(); i++)
+	{
+		Transform t = entities[i].GetWorldTM();
+		XMFLOAT3 pos;
+		XMVECTOR vpos = XMLoadFloat3(&t.GetPosition());
+		vpos += XMLoadFloat3(&t.GetForward()) * sinf(totalTime) * deltaTime;
+		XMStoreFloat3(&pos, vpos);
+		t.SetPosition(pos);
+		entities[i].SetWorldTM(t);
+	}
+
 	// update camera state
 	cam.Update(deltaTime);
 
@@ -110,6 +136,9 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Grab the current back buffer for this frame
 	Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer =
 		Graphics::BackBuffers[Graphics::SwapChainIndex()];
+
+	// Update TLAS
+	RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
 
 	// Perform ray trace (which also copies the results to the back buffer)
 	RayTracing::Raytrace(cam, currentBackBuffer);

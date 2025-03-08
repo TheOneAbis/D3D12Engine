@@ -5,6 +5,14 @@
 #include <vector>
 #include "Vertex.h"
 
+struct MeshRaytracingData
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE IndexBufferSRV{ };
+	D3D12_GPU_DESCRIPTOR_HANDLE VertexBufferSRV{ };
+	Microsoft::WRL::ComPtr<ID3D12Resource> BLAS;
+	unsigned int HitGroupIndex = 0;
+};
+
 class Mesh
 {
 private:
@@ -14,6 +22,8 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW vbView{};
 	Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer;
 	D3D12_INDEX_BUFFER_VIEW ibView{};
+
+	MeshRaytracingData raytracingData;
 
 protected:
 
@@ -38,6 +48,7 @@ public:
 
 	~Mesh();
 
+	MeshRaytracingData GetRaytracingData() { return raytracingData; }
 	Microsoft::WRL::ComPtr<ID3D12Resource> GetVertexBuffer();
 	Microsoft::WRL::ComPtr<ID3D12Resource> GetIndexBuffer();
 	D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView();

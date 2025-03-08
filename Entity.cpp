@@ -25,6 +25,10 @@ void Entity::SetWorldTM(Transform newTM)
 {
 	tm = newTM;
 }
+void Entity::SetWorldTM(DirectX::XMFLOAT3 newPos, DirectX::XMFLOAT3 newRot, DirectX::XMFLOAT3 newScale)
+{
+	tm = Transform(newPos, newRot, newScale);
+}
 
 const std::shared_ptr<Material> Entity::GetMaterial()
 {
