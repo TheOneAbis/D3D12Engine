@@ -286,7 +286,10 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 
 	// === Shader config (payload) ===
 	D3D12_RAYTRACING_SHADER_CONFIG shaderConfigDesc = {};
-	shaderConfigDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT3);	// Assuming a float3 color for now
+	shaderConfigDesc.MaxPayloadSizeInBytes = 
+		sizeof(DirectX::XMFLOAT3) + // float3 color
+		sizeof(unsigned int) +      // uint recursionDepth
+		sizeof(unsigned int);	    // uint rayPerPixelIndex
 	shaderConfigDesc.MaxAttributeSizeInBytes = sizeof(DirectX::XMFLOAT2); // Assuming a float2 for barycentric coords for now
 
 	D3D12_STATE_SUBOBJECT shaderConfigSubObj = {};

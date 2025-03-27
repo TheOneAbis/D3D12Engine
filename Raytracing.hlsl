@@ -20,6 +20,8 @@ static const uint VertexSizeInBytes = 11 * 4;
 struct RayPayload
 {
 	float3 color;
+    uint recursionDepth;
+    uint rayPerPixelIndex;
 };
 
 // Note: We'll be using the built-in BuiltInTriangleIntersectionAttributes struct
@@ -131,6 +133,30 @@ RayDesc CalcRayFromCamera(float2 rayIndices)
 	return ray;
 }
 
+// "Random" number between 0 and 1
+float Rand(float2 uv)
+{
+    return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+}
+float2 Rand2(float2 uv)
+{
+    return float2(
+		Rand(uv),
+		Rand(uv.yx));
+}
+
+// "Random" vector in hemisphere
+#define PI 3.1415926f
+float3 RandomVecHemisphere(float u0, float u1, float3 unitNormal)
+{
+    float a = u0 * 2 - 1;
+    float b = sqrt(1 - a * a);
+    float phi = 2.0f * PI * u1;
+    float x = unitNormal.x + b * cos(phi);
+    float y = unitNormal.y + b * sin(phi);
+    float z = unitNormal.z + a;
+    return float3(x, y, z);
+}
 
 // === Shaders ===
 
@@ -140,29 +166,38 @@ RayDesc CalcRayFromCamera(float2 rayIndices)
 void RayGen()
 {
 	// Get the ray indices
-	uint2 rayIndices = DispatchRaysIndex().xy;
+    uint2 rayIndices = DispatchRaysIndex().xy;
+	
+    float3 totalColor = float3(0, 0, 0);
+	
+    int raysPerPixel = 25;
+    for (int r = 0; r < raysPerPixel; r++)
+    {
+        float2 adjustedIndices = (float2)rayIndices;
+        float ray01 = (float)r / raysPerPixel;
+        adjustedIndices += Rand2(rayIndices.xy * ray01);
+	
+		// Calculate the ray from the camera through a particular
+		// pixel of the output buffer using this shader's indices
+        RayDesc ray = CalcRayFromCamera(adjustedIndices);
 
-	// Calculate the ray from the camera through a particular
-	// pixel of the output buffer using this shader's indices
-	RayDesc ray = CalcRayFromCamera(rayIndices);
+		// Set up the payload for the ray
+		// This initializes the struct to all zeros
+        RayPayload payload = (RayPayload) 0;
 
-	// Set up the payload for the ray
-	// This initializes the struct to all zeros
-	RayPayload payload = (RayPayload)0;
+		// Perform the ray trace for this ray
+        TraceRay(
+			SceneTLAS,
+			RAY_FLAG_NONE,
+			0xFF, 0, 0, 0,
+			ray,
+			payload);
+		
+        totalColor += payload.color;
+    }
 
-	// Perform the ray trace for this ray
-	TraceRay(
-		SceneTLAS,
-		RAY_FLAG_NONE,
-		0xFF,
-		0,
-		0,
-		0,
-		ray,
-		payload);
-
-	// Set the final color of the buffer
-	OutputColor[rayIndices] = float4(payload.color, 1);
+	// Set the final color of the buffer from average of results
+    OutputColor[rayIndices] = float4(totalColor / raysPerPixel, 1);
 }
 
 
@@ -180,6 +215,42 @@ void Miss(inout RayPayload payload)
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes hitAttributes)
 {
-    uint instanceID = InstanceID();
-    payload.color = entityColor[instanceID].rgb;
+	// If reached max recusion, no light source was hit
+	if (payload.recursionDepth == 10)
+    {
+        payload.color = float3(0, 0, 0);
+        return;
+    }
+	
+	// Hit, so adjust the payload color by this instance's color
+    payload.color *= entityColor[InstanceID()].rgb;
+	
+	// Calculate normal from barycentric hit
+    Vertex hit = InterpolateVertices(PrimitiveIndex(), hitAttributes.barycentrics);
+    float3 normal_WS = normalize(mul(hit.normal, (float3x3)ObjectToWorld4x3()));
+	
+	// Calculate unique RNG value for this ray, based on "uv" of this pixel and other per-ray data
+    float2 uv = (float2)DispatchRaysIndex() / (float2)DispatchRaysDimensions();
+    float2 rng = Rand2(uv * (payload.recursionDepth + 1) + payload.rayPerPixelIndex + RayTCurrent());
+	
+	// Interpolate between perfect reflection and random bounce based on roughness
+    float3 refl = reflect(WorldRayDirection(), normal_WS);
+    float3 randomBounce = RandomVecHemisphere(Rand(rng), Rand(rng.yx), normal_WS);
+    float3 dir = normalize(lerp(refl, randomBounce, entityColor[InstanceID()].a));
+	
+	// Generate new direction
+    RayDesc ray;
+    ray.Origin = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    ray.Direction = dir;
+    ray.TMin = 0.0001f;
+    ray.TMax = 1000.f;
+	
+	// Recursive raytrace
+    payload.recursionDepth++;
+    TraceRay(
+		SceneTLAS,
+		RAY_FLAG_NONE,
+		0xFF, 0, 0, 0, // Mask and offsets
+		ray, 
+		payload);
 }
