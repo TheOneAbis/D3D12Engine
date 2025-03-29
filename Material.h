@@ -8,10 +8,11 @@ class Material
 {
 public:
 
-	Material(DirectX::XMFLOAT3 colorTint,
+	Material(DirectX::XMFLOAT3 colorTint, float roughness,
 		DirectX::XMFLOAT2 uvScale = DirectX::XMFLOAT2(1, 1),
 		DirectX::XMFLOAT2 uvOffset = DirectX::XMFLOAT2(0, 0));
 
+	float GetRoughness();
 	DirectX::XMFLOAT3 GetColorTint();
 	DirectX::XMFLOAT2 GetUVScale();
 	DirectX::XMFLOAT2 GetUVOffset();
@@ -25,6 +26,7 @@ private:
 	DirectX::XMFLOAT3 colorTint;
 	DirectX::XMFLOAT2 uvScale;
 	DirectX::XMFLOAT2 uvOffset;
+	float roughness = 1.f;
 
 	bool finalized = false;
 	int maxTextures = 4;

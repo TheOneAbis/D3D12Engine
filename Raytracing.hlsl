@@ -5,10 +5,10 @@
 // Layout of data in the vertex buffer
 struct Vertex
 {
-    float3 localPosition;
-    float2 uv;
-    float3 normal;
-    float3 tangent;
+    float3 localPosition : POSITION;
+    float2 uv : TEXCOORD;
+    float3 normal : NORMAL;
+    float3 tangent : TANGENT;
 };
 
 // 11 floats total per vertex * 4 bytes each
@@ -146,7 +146,7 @@ float2 Rand2(float2 uv)
 }
 
 // "Random" vector in hemisphere
-#define PI 3.1415926f
+#define PI 3.141592654f
 float3 RandomVecHemisphere(float u0, float u1, float3 unitNormal)
 {
     float a = u0 * 2 - 1;
@@ -174,16 +174,17 @@ void RayGen()
     for (int r = 0; r < raysPerPixel; r++)
     {
         float2 adjustedIndices = (float2)rayIndices;
-        float ray01 = (float)r / raysPerPixel;
-        adjustedIndices += Rand2(rayIndices.xy * ray01);
+        adjustedIndices += Rand2((float)r / raysPerPixel);
 	
 		// Calculate the ray from the camera through a particular
 		// pixel of the output buffer using this shader's indices
         RayDesc ray = CalcRayFromCamera(adjustedIndices);
 
 		// Set up the payload for the ray
-		// This initializes the struct to all zeros
-        RayPayload payload = (RayPayload) 0;
+        RayPayload payload;
+        payload.color = float3(1, 1, 1);
+        payload.recursionDepth = 0;
+        payload.rayPerPixelIndex = r;
 
 		// Perform the ray trace for this ray
         TraceRay(
@@ -207,7 +208,7 @@ void Miss(inout RayPayload payload)
 {
 	// Nothing was hit, so return black for now.
 	// Ideally this is where we would do skybox stuff!
-    payload.color = float3(0.4f, 0.6f, 0.75f);
+    payload.color *= float3(0.7f, 0.8f, 0.9f);
 }
 
 

@@ -3,14 +3,21 @@
 #include "Graphics.h"
 
 Material::Material(DirectX::XMFLOAT3 colorTint,
+	float roughness,
 	DirectX::XMFLOAT2 uvScale,
 	DirectX::XMFLOAT2 uvOffset)
 {
+	this->roughness = roughness;
 	this->colorTint = colorTint;
 	this->uvScale = uvScale;
 	this->uvOffset = uvOffset;
 
 	finalGPUHandleForSRVs = {};
+}
+
+float Material::GetRoughness()
+{
+	return roughness;
 }
 
 DirectX::XMFLOAT3 Material::GetColorTint()

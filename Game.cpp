@@ -41,20 +41,23 @@ void Game::Initialize()
 	meshMap["SM_Helix"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/helix.obj").c_str());
 	meshMap["SM_Sphere"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/sphere.obj").c_str());
 	meshMap["SM_Torus"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/torus.obj").c_str());
+	meshMap["SM_Plane"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/quad.obj").c_str());
 
 	// create entities
-	entities.push_back(Entity(meshMap["SM_Cube"], std::make_shared<Material>(XMFLOAT3(1, 0.5, 1))));
-	entities.push_back(Entity(meshMap["SM_Helix"], std::make_shared<Material>(XMFLOAT3(0.25, 1, 0.78))));
-	entities.push_back(Entity(meshMap["SM_Torus"], std::make_shared<Material>(XMFLOAT3(0.9, 0.4, 0.7))));
+	entities.push_back(Entity(meshMap["SM_Cube"], std::make_shared<Material>(XMFLOAT3(1, 0.5f, 1), 1.f)));
+	entities.push_back(Entity(meshMap["SM_Helix"], std::make_shared<Material>(XMFLOAT3(0.25f, 1, 0.78f), 1.f)));
+	entities.push_back(Entity(meshMap["SM_Torus"], std::make_shared<Material>(XMFLOAT3(0.9f, 0.4f, 0.7f), 1.f)));
+	entities.push_back(Entity(meshMap["SM_Plane"], std::make_shared<Material>(XMFLOAT3(0.5f, 0.5f, 0.6f), 0.6f)));
 
 	// set entity transforms
 	entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
 	entities[1].SetWorldTM(Transform(XMFLOAT3(-2, 0, 4)));
 	entities[2].SetWorldTM(Transform(XMFLOAT3(2, 0, 4)));
+	entities[3].SetWorldTM(Transform(XMFLOAT3(0, -2, 0), XMFLOAT3(0, 0, 0), XMFLOAT3(20, 20, 20)));
 	
 	for (int i = 0; i < 12; i++)
 	{
-		Entity e(meshMap["SM_Sphere"], std::make_shared<Material>(XMFLOAT3(RandFloat(0, 1), RandFloat(0, 1), RandFloat(0, 1))));
+		Entity e(meshMap["SM_Sphere"], std::make_shared<Material>(XMFLOAT3(RandFloat(0, 1), RandFloat(0, 1), RandFloat(0, 1)), RandFloat(0, 1)));
 		e.SetWorldTM(XMFLOAT3(RandFloat(-4, 4), RandFloat(-4, 4), RandFloat(2, 5)), { 0, RandFloat(0, PI * 2.f), 0 }, {0.5f, 0.5f, 0.5f});
 		entities.push_back(e);
 	}
@@ -108,7 +111,7 @@ void Game::Update(float deltaTime, float totalTime)
 	t.Rotate(0, deltaTime, 0);
 	entities[0].SetWorldTM(t);
 
-	for (int i = 3; i < entities.size(); i++)
+	for (int i = 4; i < entities.size(); i++)
 	{
 		Transform t = entities[i].GetWorldTM();
 		XMFLOAT3 pos;
