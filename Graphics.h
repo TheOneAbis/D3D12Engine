@@ -106,6 +106,10 @@ namespace Graphics
 		D3D12_CPU_DESCRIPTOR_HANDLE* reservedCPUHandle,
 		D3D12_GPU_DESCRIPTOR_HANDLE* reservedGPUHandle);
 
+	// this function was taken from https://github.com/vixorien/ggp-advanced-demos/blob/main/DX12/RT%20-%2005%20-%20Full%20Bindless/DX12Helper.cpp
+	// Takes a GPU descriptor handle and returns the index of its location in the descriptor heap.
+	UINT GetDescriptorIndex(D3D12_GPU_DESCRIPTOR_HANDLE handle);
+
 	// Debug Layer
 	void PrintDebugMessages();
 }

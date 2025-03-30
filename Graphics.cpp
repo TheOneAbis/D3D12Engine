@@ -731,6 +731,11 @@ D3D12_CPU_DESCRIPTOR_HANDLE Graphics::LoadTexture(const wchar_t* file, bool gene
 	return cpuHandle;
 }
 
+UINT Graphics::GetDescriptorIndex(D3D12_GPU_DESCRIPTOR_HANDLE handle)
+{
+	return (UINT)(handle.ptr - cbvSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart().ptr) / (UINT)cbvSrvDescriptorHeapIncrementSize;
+}
+
 D3D12_GPU_DESCRIPTOR_HANDLE Graphics::CopySRVsToDescriptorHeapAndGetGPUDescriptorHandle(
 	D3D12_CPU_DESCRIPTOR_HANDLE firstDescriptorToCopy,
 	unsigned int numDescriptorsToCopy)
