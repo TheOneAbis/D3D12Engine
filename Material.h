@@ -8,7 +8,7 @@ class Material
 {
 public:
 
-	Material(DirectX::XMFLOAT3 colorTint, float roughness,
+	Material(DirectX::XMFLOAT3 colorTint, float roughness = 1.f,
 		DirectX::XMFLOAT2 uvScale = DirectX::XMFLOAT2(1, 1),
 		DirectX::XMFLOAT2 uvOffset = DirectX::XMFLOAT2(0, 0));
 

@@ -1,5 +1,3 @@
-
-
 // === Structs ===
 
 // Layout of data in the vertex buffer
@@ -24,6 +22,16 @@ struct RayPayload
     uint rayPerPixelIndex;
 };
 
+struct MaterialData
+{
+    float4 color;
+	
+    int albedoIndex;
+    int normalIndex;
+    int metalIndex;
+    int roughIndex;
+};
+
 // Note: We'll be using the built-in BuiltInTriangleIntersectionAttributes struct
 // for triangle attributes, so no need to define our own.  It contains a single float2.
 
@@ -41,7 +49,7 @@ cbuffer SceneData : register(b0)
 #define MAX_INSTANCES_PER_BLAS 100
 cbuffer ObjectData : register(b1)
 {
-    float4 entityColor[MAX_INSTANCES_PER_BLAS];
+    MaterialData materials[MAX_INSTANCES_PER_BLAS];
 };
 
 // === Resources ===
@@ -56,6 +64,9 @@ RaytracingAccelerationStructure SceneTLAS	: register(t0);
 ByteAddressBuffer IndexBuffer        		: register(t1);
 ByteAddressBuffer VertexBuffer				: register(t2);
 
+// Textures and samplers
+Texture2D Textures[] : register(t0, space1);
+SamplerState basicSampler : register(s0);
 
 // === Helpers ===
 
@@ -223,12 +234,25 @@ void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes 
         return;
     }
 	
-	// Hit, so adjust the payload color by this instance's color
-    payload.color *= entityColor[InstanceID()].rgb;
-	
+    MaterialData mat = materials[InstanceID()];
+    
 	// Calculate normal from barycentric hit
     Vertex hit = InterpolateVertices(PrimitiveIndex(), hitAttributes.barycentrics);
-    float3 normal_WS = normalize(mul(hit.normal, (float3x3)ObjectToWorld4x3()));
+	
+	// Adjust the payload color by this instance's color
+    payload.color *= mat.albedoIndex == -1 ? mat.color.rgb : mat.color.rgb * Textures[mat.albedoIndex].SampleLevel(basicSampler, hit.uv, 0).rgb;
+    
+	// Calculate hit normal
+    float3 normal_WS = normalize(mul(hit.normal, (float3x3) ObjectToWorld4x3()));
+	if (mat.normalIndex != -1)
+    {
+        float3 tangent_WS = normalize(mul(hit.tangent, (float3x3) ObjectToWorld4x3()));
+        float3 normalFromTex = Textures[mat.normalIndex].SampleLevel(basicSampler, hit.uv, 0).rgb * 2 - 1;
+        float3 T = normalize(tangent_WS - normal_WS * dot(tangent_WS, normal_WS));
+        float3 B = cross(T, normal_WS);
+		// convert from tangent space to world space
+        normal_WS = normalize(mul(normalFromTex, float3x3(T, B, normal_WS)));
+    }
 	
 	// Calculate unique RNG value for this ray, based on "uv" of this pixel and other per-ray data
     float2 uv = (float2)DispatchRaysIndex() / (float2)DispatchRaysDimensions();
@@ -237,7 +261,8 @@ void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes 
 	// Interpolate between perfect reflection and random bounce based on roughness
     float3 refl = reflect(WorldRayDirection(), normal_WS);
     float3 randomBounce = RandomVecHemisphere(Rand(rng), Rand(rng.yx), normal_WS);
-    float3 dir = normalize(lerp(refl, randomBounce, entityColor[InstanceID()].a));
+    float3 dir = normalize(lerp(refl, randomBounce, 
+		mat.roughIndex == -1 ? mat.color.a : Textures[mat.roughIndex].SampleLevel(basicSampler, hit.uv, 0).r));
 	
 	// Generate new direction
     RayDesc ray;

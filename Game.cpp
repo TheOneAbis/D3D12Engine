@@ -43,11 +43,47 @@ void Game::Initialize()
 	meshMap["SM_Torus"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/torus.obj").c_str());
 	meshMap["SM_Plane"] = std::make_shared<Mesh>(FixPath(L"../../Assets/Basic Meshes/quad.obj").c_str());
 
+	// wood
+	std::shared_ptr<Material> mat = std::make_shared<Material>(XMFLOAT3(1, 1, 1));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/wood_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Wood"] = mat;
+
+	// paint
+	mat = std::make_shared<Material>(XMFLOAT3(1, 1, 1));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/paint_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Paint"] = mat;
+
+	// rock
+	mat = std::make_shared<Material>(XMFLOAT3(1, 1, 1));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/rough_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Rock"] = mat;
+
+	// scratched
+	mat = std::make_shared<Material>(XMFLOAT3(1, 1, 1));
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_albedo.png").c_str()), 0);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_normals.png").c_str()), 1);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_metal.png").c_str()), 2);
+	mat->AddTexture(Graphics::LoadTexture(FixPath(L"../../Assets/PBR/scratched_roughness.png").c_str()), 3);
+	mat->FinalizeMaterial();
+	materialMap["M_Scratched"] = mat;
+
 	// create entities
-	entities.push_back(Entity(meshMap["SM_Cube"], std::make_shared<Material>(XMFLOAT3(1, 0.5f, 1), 1.f)));
-	entities.push_back(Entity(meshMap["SM_Helix"], std::make_shared<Material>(XMFLOAT3(0.25f, 1, 0.78f), 1.f)));
-	entities.push_back(Entity(meshMap["SM_Torus"], std::make_shared<Material>(XMFLOAT3(0.9f, 0.4f, 0.7f), 1.f)));
-	entities.push_back(Entity(meshMap["SM_Plane"], std::make_shared<Material>(XMFLOAT3(0.5f, 0.5f, 0.6f), 0.6f)));
+	entities.push_back(Entity(meshMap["SM_Cube"], materialMap["M_Paint"]));
+	entities.push_back(Entity(meshMap["SM_Helix"], materialMap["M_Rock"]));
+	entities.push_back(Entity(meshMap["SM_Torus"], materialMap["M_Scratched"]));
+	entities.push_back(Entity(meshMap["SM_Plane"], materialMap["M_Wood"]));
 
 	// set entity transforms
 	entities[0].SetWorldTM(Transform(XMFLOAT3(-6, 0, 4)));
