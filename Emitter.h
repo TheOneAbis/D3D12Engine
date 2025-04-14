@@ -2,7 +2,6 @@
 
 #include <d3d12.h>
 #include <wrl/client.h>
-#include <vector>
 
 struct Particle
 {
@@ -26,12 +25,12 @@ public:
 
 private:
 
-	std::vector<Particle> particles;
+	int maxParticles;
+	Particle* particles;
 	Microsoft::WRL::ComPtr<ID3D12Resource> particleBuffer;
 
 	// Properties for particles
-	unsigned int firstAlive, firstDead;
-	unsigned int numAlive;
+	unsigned int firstAlive, firstDead, numAlive;
 
 	//Emitter properties
 	float emissionTmr;
