@@ -8,7 +8,6 @@
 
 #include "Camera.h"
 #include "Entity.h"
-#include "Emitter.h"
 #include "Light.h"
 
 class Game
@@ -30,7 +29,6 @@ private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void CreateRootSigAndPipelineState();
-	void CreateParticleRootSigPipelineState();
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the
@@ -38,8 +36,8 @@ private:
 	//  - More info here: https://github.com/Microsoft/DirectXTK/wiki/ComPtr
 
 	// Pipeline
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature, particleRootSig;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState, particlePipelineState;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState;
 
 	// Other graphics data
 	D3D12_VIEWPORT viewport{};
@@ -47,7 +45,6 @@ private:
 
 	Camera cam;
 	std::vector<Entity> entities;
-	std::vector<Emitter> emitters;
 	std::unordered_map<std::string, std::shared_ptr<Mesh>> meshMap;
 	std::unordered_map<std::string, std::shared_ptr<Material>> materialMap;
 	std::vector<Light> lights;

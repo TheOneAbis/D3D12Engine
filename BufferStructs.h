@@ -22,10 +22,3 @@ struct PSExternalData
     DirectX::XMFLOAT4 ambient;
     Light lights[MAX_LIGHTS];
 };
-
-struct ParticleVSExternalData
-{
-    DirectX::XMFLOAT4X4 view;
-    DirectX::XMFLOAT4X4 projection;
-    float time;
-};

@@ -1,3 +1,9 @@
+struct Particle
+{
+    float time;
+    float startPos;
+};
+
 struct VertexToPixel
 {
     float4 position : SV_POSITION;
@@ -6,15 +12,9 @@ struct VertexToPixel
 
 cbuffer ExternalData : register(b0)
 {
+    matrix world;
+    matrix worldInvTranspose;
     matrix view;
     matrix projection;
     float time;
 };
-
-struct Particle
-{
-    float time;
-    float startPos;
-};
-
-StructuredBuffer<Particle> particles : register(t0);
