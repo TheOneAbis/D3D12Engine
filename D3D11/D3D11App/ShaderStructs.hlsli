@@ -32,5 +32,4 @@ struct VertexToPixel_Sky
 	float3 sampleDir		: DIRECTION;
 };
 
-
 #endif
