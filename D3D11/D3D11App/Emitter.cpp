@@ -4,15 +4,16 @@
 
 #include <iostream>
 
+using namespace DirectX;
+
 Emitter::Emitter(
 	std::shared_ptr<SimpleVertexShader> vs,
 	std::shared_ptr<SimplePixelShader> ps,
-	float rate, float maxLifetime, Transform transform,
+	float rate, float maxLifetime,
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv,
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler) :
 	vs(vs), 
-	ps(ps), 
-	transform(transform),
+	ps(ps),
 	emissionRate(rate),
 	maxLifetime(maxLifetime),
 	textureSRV(srv),
@@ -84,6 +85,10 @@ Emitter::~Emitter()
 	delete[] particles;
 }
 
+float RandRange(float min, float max)
+{
+	return min + (float)(rand() / (float)(RAND_MAX / (max - min)));
+}
 void Emitter::Update(float dt)
 {
 	currentTime += dt;
@@ -107,16 +112,39 @@ void Emitter::Update(float dt)
 	emissionTmr += dt;
 	while (emissionTmr > emissionTime)
 	{
-		particles[firstDead].emitTime = 0;
-		particles[firstDead].startPos = transform.GetPosition();
+		for (unsigned int i = 0; i < burstCount; i++)
+		{
+			particles[firstDead].emitTime = 0;
 
-		numAlive++;
-		firstDead = (firstDead + 1) % maxParticles;
+			// Generate random positions, rotations and scales
+			XMFLOAT3 startPos;
+			XMStoreFloat3(&startPos, XMVectorLerp(
+				XMLoadFloat3(&minPos),
+				XMLoadFloat3(&maxPos),
+				(float)(rand() / (float)RAND_MAX)));
+			particles[firstDead].startPos = startPos;
+			particles[firstDead].startRotation = RandRange(minRotation, maxRotation);
+			particles[firstDead].startScale = RandRange(minScale, maxScale);
+			particles[firstDead].endScale = RandRange(minEndScale, maxEndScale);
+			particles[firstDead].angularVelocity = RandRange(minAngularVel, maxAngularVel);
+
+			// random velocity
+			particles[firstDead].velocity =
+			{
+				RandRange(minVelocity.x, maxVelocity.x),
+				RandRange(minVelocity.y, maxVelocity.y),
+				RandRange(minVelocity.z, maxVelocity.z),
+			};
+
+			numAlive++;
+			firstDead = (firstDead + 1) % maxParticles;
+		}
 
 		emissionTmr -= emissionTime;
 	}
 
-	std::cout << numAlive << std::endl;
+	if (numAlive > maxParticles)
+		std::cout << "WARNING: More live particles (" << numAlive << ") than the max (" << maxParticles << ")!" << std::endl;
 }
 
 void Emitter::Draw(std::shared_ptr<Camera> cam)
@@ -156,12 +184,15 @@ void Emitter::Draw(std::shared_ptr<Camera> cam)
 	vs->SetMatrix4x4("view", cam->GetView());
 	vs->SetMatrix4x4("projection", cam->GetProjection());
 	vs->SetFloat("currentTime", currentTime);
+	vs->SetFloat("lifespan", maxLifetime);
+	vs->SetFloat3("acceleration", acceleration);
 	vs->CopyAllBufferData();
 
 	vs->SetShaderResourceView("particles", particleSRV.Get());
 
 	// Send data to the pixel shader
-	ps->SetFloat3("colorTint", { 1, 1, 1 });
+	ps->SetFloat3("startColor", startColor);
+	ps->SetFloat3("endColor", endColor);
 	ps->CopyAllBufferData();
 
 	ps->SetShaderResourceView("colorTexture", textureSRV.Get());

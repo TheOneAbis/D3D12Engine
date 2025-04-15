@@ -12,8 +12,13 @@ class Camera;
 
 struct Particle
 {
-	float emitTime;
 	DirectX::XMFLOAT3 startPos;
+	float startRotation;
+	DirectX::XMFLOAT3 velocity;
+	float angularVelocity;
+	float startScale;
+	float endScale;
+	float emitTime;
 };
 
 class Emitter
@@ -23,7 +28,8 @@ public:
 	Emitter(
 		std::shared_ptr<SimpleVertexShader> vs,
 		std::shared_ptr<SimplePixelShader> ps, 
-		float rate, float maxLifetime, Transform transform,
+		float rate, 
+		float maxLifetime,
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv,
 		Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler);
 	~Emitter();
@@ -34,7 +40,20 @@ public:
 	// emission properties
 	float maxLifetime;
 	float emissionRate;
-	Transform transform;
+	DirectX::XMFLOAT3 minPos = {};
+	DirectX::XMFLOAT3 maxPos = {};
+	float minRotation = 0;
+	float maxRotation = 0;
+	float minScale = 1, maxScale = 1;
+	float minEndScale = 1, maxEndScale = 1;
+	DirectX::XMFLOAT3 minVelocity = {};
+	DirectX::XMFLOAT3 maxVelocity = {};
+	float minAngularVel = 0;
+	float maxAngularVel = 0;
+	DirectX::XMFLOAT3 startColor = { 1, 1, 1 };
+	DirectX::XMFLOAT3 endColor = { 1, 1, 1 };
+	DirectX::XMFLOAT3 acceleration = { 0, 0, 0 };
+	unsigned int burstCount = 1;
 
 private:
 

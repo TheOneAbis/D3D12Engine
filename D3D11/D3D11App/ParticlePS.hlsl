@@ -3,11 +3,15 @@ struct VToP
 {
     float4 position : SV_POSITION;
     float2 uv : TEXCOORD0;
+    float age : AGE;
+    float lifespan : LIFESPAN;
 };
 
 cbuffer ExternalData : register(b0)
 {
-    float3 colorTint;
+    float3 startColor;
+    float padding;
+    float3 endColor;
 };
 
 // Texture related resources
@@ -16,5 +20,6 @@ SamplerState BasicSampler : register(s0);
 
 float4 main(VToP input) : SV_TARGET
 {
-    return colorTexture.Sample(BasicSampler, input.uv) * float4(colorTint, 1);
+    float agePercent = input.age / input.lifespan;
+    return colorTexture.Sample(BasicSampler, input.uv) * float4(lerp(startColor, endColor, agePercent), 1.f - agePercent);
 }

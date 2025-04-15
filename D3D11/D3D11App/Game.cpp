@@ -138,7 +138,7 @@ void Game::LoadAssetsAndCreateEntities()
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeA, bronzeN, bronzeR, bronzeM;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughA, roughN, roughR, roughM;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodA, woodN, woodR, woodM;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> star6;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> star6, fire1, slash1;
 
 	// Quick pre-processor macro for simplifying texture loading calls below
 #define LoadTexture(path, srv) CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(path).c_str(), 0, srv.GetAddressOf());
@@ -177,7 +177,9 @@ void Game::LoadAssetsAndCreateEntities()
 	LoadTexture(AssetPath + L"Textures/PBR/wood_roughness.png", woodR);
 	LoadTexture(AssetPath + L"Textures/PBR/wood_metal.png", woodM);
 	
-	LoadTexture(AssetPath + L"Textures/Particles/star_06.png", star6);
+	LoadTexture(AssetPath + L"Textures/Particles/PNG (Transparent)/star_06.png", star6);
+	LoadTexture(AssetPath + L"Textures/Particles/PNG (Transparent)/fire_01.png", fire1);
+	LoadTexture(AssetPath + L"Textures/Particles/PNG (Transparent)/slash_01.png", slash1);
 #undef LoadTexture
 
 
@@ -379,7 +381,52 @@ void Game::LoadAssetsAndCreateEntities()
 	}
 
 	// Create emitters
-	emitters.push_back(std::make_shared<Emitter>(particleVS, particlePS, 4.f, 2.f, Transform(), star6, sampler));
+	std::shared_ptr<Emitter> stars = std::make_shared<Emitter>(particleVS, particlePS, 8.f, 2.f, star6, sampler);
+	stars->minPos = { -0.5f, 2, -0.5f };
+	stars->maxPos = { 0.5f, 2, 0.5f };
+	stars->minRotation = -XM_PI;
+	stars->maxRotation = XM_PI;
+	stars->minScale = 0.25f;
+	stars->minEndScale = 0.25f;
+	stars->maxScale = 1.f;
+	stars->maxEndScale = 1.f;
+	stars->minVelocity = { -1, 1, -1 };
+	stars->maxVelocity = { 1, 1, 1 };
+	stars->startColor = { 1, 1, 0.5f };
+	stars->endColor = { 1, 0.5f, 1 };
+	emitters.push_back(stars);
+
+	std::shared_ptr<Emitter> fire = std::make_shared<Emitter>(particleVS, particlePS, 15.f, 2.f, fire1, sampler);
+	fire->minPos = { -1.9f, 1, -0.5f };
+	fire->maxPos = { -2.1f, 1, -0.7f };
+	fire->minRotation = 0;
+	fire->maxRotation = XM_PI * 2.f;
+	fire->minScale = 0.1f;
+	fire->maxScale = 0.1f;
+	fire->minEndScale = 2.f;
+	fire->maxEndScale = 2.f;
+	fire->minVelocity = { 0.3f, 1.f, 0.f };
+	fire->maxVelocity = { 0.4f, 0.9f, 0.f };
+	fire->startColor = { 1, 0.6f, 0.23f };
+	fire->endColor = { 1, 0.3f, 0.3f };
+	emitters.push_back(fire);
+
+	std::shared_ptr<Emitter> slash = std::make_shared<Emitter>(particleVS, particlePS, 2.f, 1.f, slash1, sampler);
+	slash->minPos = { -1.9f, -1, -1.f };
+	slash->maxPos = { -2.1f, -1.2f, -1.f };
+	slash->minRotation = 0;
+	slash->maxRotation = XM_PI * 2.f;
+	slash->minScale = 0.85f;
+	slash->maxScale = 1.15f;
+	slash->minEndScale = 0.85f;
+	slash->maxEndScale = 1.15f;
+	slash->minVelocity = { -5.f, -5.f, 0.f };
+	slash->maxVelocity = { 5.f, 5.f, 0.f };
+	slash->acceleration = { 0, -10, 0 };
+	slash->minAngularVel = -10;
+	slash->maxAngularVel = 10;
+	slash->burstCount = 10;
+	emitters.push_back(slash);
 }
 
 // --------------------------------------------------------
@@ -656,6 +703,12 @@ void Game::Draw(float deltaTime, float totalTime)
 		e->Draw(camera);
 	}
 
+	// Draw the sky after all regular entities
+	if (lightOptions.ShowSkybox) sky->Draw(camera);
+
+	// Draw the light sources
+	if (lightOptions.DrawLights) DrawLightSources();
+
 	// set blend and depth states for particles
 	const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
 	Graphics::Context->OMSetBlendState(particleBlendState.Get(), blend_factor, 0xffffffff);
@@ -663,19 +716,11 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	// draw particles
 	for (auto& e : emitters)
-	{
 		e->Draw(camera);
-	}
 
 	// reset blend and depth states
 	Graphics::Context->OMSetBlendState(0, blend_factor, 0xffffffff);
 	Graphics::Context->OMSetDepthStencilState(0, 0);
-
-	// Draw the sky after all regular entities
-	if (lightOptions.ShowSkybox) sky->Draw(camera);
-
-	// Draw the light sources
-	if (lightOptions.DrawLights) DrawLightSources();
 
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME
