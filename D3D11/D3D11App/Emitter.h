@@ -23,15 +23,13 @@ public:
 	Emitter(
 		std::shared_ptr<SimpleVertexShader> vs,
 		std::shared_ptr<SimplePixelShader> ps, 
-		float rate, float maxLifetime, bool additive, 
-		Transform transform);
+		float rate, float maxLifetime, Transform transform,
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv,
+		Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler);
 	~Emitter();
 
 	void Update(float deltaTime);
 	void Draw(std::shared_ptr<Camera> cam);
-
-	void SetTexture(Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv);
-	void SetSampler(Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler);
 
 	// emission properties
 	float maxLifetime;
@@ -43,13 +41,11 @@ private:
 	// particle properties
 	unsigned int maxParticles;
 	Particle* particles;
-	unsigned int numIndices;
 	unsigned int firstAlive, firstDead, numAlive;
 
 	float emissionTime;
 	float emissionTmr;
 	float currentTime;
-	bool additive;
 
 	std::shared_ptr<SimplePixelShader> ps;
 	std::shared_ptr<SimpleVertexShader> vs;
@@ -57,8 +53,6 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> particleBuffer;
 	Microsoft::WRL::ComPtr<ID3D11Buffer> indexBuffer;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> particleSRV;
-	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> particleDSS;
-	Microsoft::WRL::ComPtr<ID3D11BlendState> particleBlendState;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> textureSRV;
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
 };

@@ -77,6 +77,25 @@ void Game::Initialize()
 		0.01f,					// Near clip
 		100.0f,					// Far clip
 		CameraProjectionType::Perspective);
+
+	// Blend state description for either additive or alpha blending (based on "additive" boolean)
+	D3D11_BLEND_DESC additiveBlendDesc = {};
+	additiveBlendDesc.RenderTarget[0].BlendEnable = true;
+	additiveBlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD; // Add both colors
+	additiveBlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; // Add both alpha values
+	additiveBlendDesc.RenderTarget[0].SrcBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_SRC_ALPHA;
+	additiveBlendDesc.RenderTarget[0].DestBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_INV_SRC_ALPHA;
+	additiveBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	additiveBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+	additiveBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	Graphics::Device->CreateBlendState(&additiveBlendDesc, particleBlendState.GetAddressOf());
+
+	// Depth state so pixels are occluded by objects but do no occlude other particles
+	D3D11_DEPTH_STENCIL_DESC particleDepthDesc = {};
+	particleDepthDesc.DepthEnable = true; // READ from depth buffer
+	particleDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // No depth WRITING
+	particleDepthDesc.DepthFunc = D3D11_COMPARISON_LESS; // Standard depth comparison
+	Graphics::Device->CreateDepthStencilState(&particleDepthDesc, particleDSS.GetAddressOf());
 }
 
 
@@ -119,6 +138,7 @@ void Game::LoadAssetsAndCreateEntities()
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeA, bronzeN, bronzeR, bronzeM;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughA, roughN, roughR, roughM;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodA, woodN, woodR, woodM;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> star6;
 
 	// Quick pre-processor macro for simplifying texture loading calls below
 #define LoadTexture(path, srv) CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(path).c_str(), 0, srv.GetAddressOf());
@@ -156,6 +176,8 @@ void Game::LoadAssetsAndCreateEntities()
 	LoadTexture(AssetPath + L"Textures/PBR/wood_normals.png", woodN);
 	LoadTexture(AssetPath + L"Textures/PBR/wood_roughness.png", woodR);
 	LoadTexture(AssetPath + L"Textures/PBR/wood_metal.png", woodM);
+	
+	LoadTexture(AssetPath + L"Textures/Particles/star_06.png", star6);
 #undef LoadTexture
 
 
@@ -164,6 +186,8 @@ void Game::LoadAssetsAndCreateEntities()
 	pixelShader = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"PixelShader.cso").c_str());
 	pixelShaderPBR = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"PixelShaderPBR.cso").c_str());
 	solidColorPS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"SolidColorPS.cso").c_str());
+	particleVS = std::make_shared<SimpleVertexShader>(Graphics::Device, Graphics::Context, FixPath(L"ParticleVS.cso").c_str());
+	particlePS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"ParticlePS.cso").c_str());
 	std::shared_ptr<SimpleVertexShader> skyVS = std::make_shared<SimpleVertexShader>(Graphics::Device, Graphics::Context, FixPath(L"SkyVS.cso").c_str());
 	std::shared_ptr<SimplePixelShader> skyPS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"SkyPS.cso").c_str());
 
@@ -353,6 +377,9 @@ void Game::LoadAssetsAndCreateEntities()
 		geMetal->GetTransform()->SetPosition(i * 2.0f - 10.0f, 1, 0);
 		geNonMetal->GetTransform()->SetPosition(i * 2.0f - 10.0f, -1, 0);
 	}
+
+	// Create emitters
+	emitters.push_back(std::make_shared<Emitter>(particleVS, particlePS, 4.f, 2.f, Transform(), star6, sampler));
 }
 
 // --------------------------------------------------------
@@ -517,6 +544,10 @@ void Game::Update(float deltaTime, float totalTime)
 		}
 	}
 
+	// Update particles
+	for (auto& e : emitters)
+		e->Update(deltaTime);
+
 	// Check for the all On / all Off switch
 	if (Input::KeyPress('O'))
 	{
@@ -624,6 +655,21 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Draw one entity
 		e->Draw(camera);
 	}
+
+	// set blend and depth states for particles
+	const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+	Graphics::Context->OMSetBlendState(particleBlendState.Get(), blend_factor, 0xffffffff);
+	Graphics::Context->OMSetDepthStencilState(particleDSS.Get(), 0);
+
+	// draw particles
+	for (auto& e : emitters)
+	{
+		e->Draw(camera);
+	}
+
+	// reset blend and depth states
+	Graphics::Context->OMSetBlendState(0, blend_factor, 0xffffffff);
+	Graphics::Context->OMSetDepthStencilState(0, 0);
 
 	// Draw the sky after all regular entities
 	if (lightOptions.ShowSkybox) sky->Draw(camera);

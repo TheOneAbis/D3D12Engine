@@ -12,6 +12,7 @@
 #include "SimpleShader.h"
 #include "Lights.h"
 #include "Sky.h"
+#include "Emitter.h"
 
 class Game
 {
@@ -55,6 +56,7 @@ private:
 	std::vector<std::shared_ptr<GameEntity>> entitiesGradient;
 	std::vector<std::shared_ptr<GameEntity>>* currentScene;
 	std::vector<Light> lights;
+	std::vector<std::shared_ptr<Emitter>> emitters;
 	
 	// Overall lighting options
 	DemoLightingOptions lightOptions;
@@ -67,5 +69,14 @@ private:
 	// Shaders for solid color spheres
 	std::shared_ptr<SimplePixelShader> solidColorPS;
 	std::shared_ptr<SimpleVertexShader> vertexShader;
+
+	// Shaders for particles
+	std::shared_ptr<SimpleVertexShader> particleVS;
+	std::shared_ptr<SimplePixelShader> particlePS;
+
+	// Render states for particles
+	bool additive = false;
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> particleDSS;
+	Microsoft::WRL::ComPtr<ID3D11BlendState> particleBlendState;
 };
 

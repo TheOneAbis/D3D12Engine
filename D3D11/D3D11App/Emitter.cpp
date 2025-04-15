@@ -2,16 +2,21 @@
 #include "Graphics.h"
 #include "Camera.h"
 
+#include <iostream>
+
 Emitter::Emitter(
 	std::shared_ptr<SimpleVertexShader> vs,
 	std::shared_ptr<SimplePixelShader> ps,
-	float rate, float maxLifetime, bool additive,
-	Transform transform) :
+	float rate, float maxLifetime, Transform transform,
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv,
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler) :
 	vs(vs), 
 	ps(ps), 
 	transform(transform),
-	additive(additive),
-	emissionRate(rate)
+	emissionRate(rate),
+	maxLifetime(maxLifetime),
+	textureSRV(srv),
+	sampler(sampler)
 {
 	emissionTime = 1.f / emissionRate;
 	emissionTmr = emissionTime;
@@ -28,7 +33,7 @@ Emitter::Emitter(
 	// create index buffer
 	unsigned int* indices = new unsigned int[maxParticles * 6];
 	int indexCount = 0;
-	for (int i = 0; i < maxParticles * 4; i += 4)
+	for (unsigned int i = 0; i < maxParticles * 4; i += 4)
 	{
 		indices[indexCount++] = i;
 		indices[indexCount++] = i + 1;
@@ -39,17 +44,18 @@ Emitter::Emitter(
 	}
 	
 	// Create the index buffer
+	D3D11_SUBRESOURCE_DATA indexData = {};
+	indexData.pSysMem = indices;
+
 	D3D11_BUFFER_DESC ibd = {};
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(unsigned int) * (UINT)numIndices; // Number of indices
+	ibd.Usage = D3D11_USAGE_DEFAULT;
+	ibd.ByteWidth = sizeof(unsigned int) * (UINT)maxParticles * 6; // Number of indices
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	ibd.CPUAccessFlags = 0;
 	ibd.MiscFlags = 0;
 	ibd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA initialIndexData = {};
-	initialIndexData.pSysMem = indices;
-	Graphics::Device->CreateBuffer(&ibd, &initialIndexData, indexBuffer.GetAddressOf());
 
+	Graphics::Device->CreateBuffer(&ibd, &indexData, indexBuffer.GetAddressOf());
 	delete[] indices;
 
 	// Make a dynamic buffer to hold all particle data on GPU
@@ -71,39 +77,11 @@ Emitter::Emitter(
 	srvDesc.Buffer.FirstElement = 0;
 	srvDesc.Buffer.NumElements = maxParticles;
 	Graphics::Device->CreateShaderResourceView(particleBuffer.Get(), &srvDesc, particleSRV.GetAddressOf());
-
-	// Blend state description for either additive or alpha blending (based on “additive” boolean)
-	D3D11_BLEND_DESC additiveBlendDesc = {};
-	additiveBlendDesc.RenderTarget[0].BlendEnable = true;
-	additiveBlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD; // Add both colors
-	additiveBlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; // Add both alpha values
-	additiveBlendDesc.RenderTarget[0].SrcBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_SRC_ALPHA;
-	additiveBlendDesc.RenderTarget[0].DestBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_INV_SRC_ALPHA;
-	additiveBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	additiveBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	additiveBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	Graphics::Device->CreateBlendState(&additiveBlendDesc, particleBlendState.GetAddressOf());
-
-	// Depth state so pixels are occluded by objects but do no occlude other particles
-	D3D11_DEPTH_STENCIL_DESC particleDepthDesc = {};
-	particleDepthDesc.DepthEnable = true; // READ from depth buffer
-	particleDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // No depth WRITING
-	particleDepthDesc.DepthFunc = D3D11_COMPARISON_LESS; // Standard depth comparison
-	Graphics::Device->CreateDepthStencilState(&particleDepthDesc, particleDSS.GetAddressOf());
 }
 
 Emitter::~Emitter()
 {
 	delete[] particles;
-}
-
-void Emitter::SetTexture(Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv)
-{
-	textureSRV = srv;
-}
-void Emitter::SetSampler(Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler)
-{
-	this->sampler = sampler;
 }
 
 void Emitter::Update(float dt)
@@ -137,6 +115,8 @@ void Emitter::Update(float dt)
 
 		emissionTmr -= emissionTime;
 	}
+
+	std::cout << numAlive << std::endl;
 }
 
 void Emitter::Draw(std::shared_ptr<Camera> cam)
@@ -163,6 +143,12 @@ void Emitter::Draw(std::shared_ptr<Camera> cam)
 	Graphics::Context->Unmap(particleBuffer.Get(), 0);
 
 	// Draw
+	UINT stride = 0;
+	UINT offset = 0;
+	ID3D11Buffer* junk = 0;
+	Graphics::Context->IASetVertexBuffers(0, 1, &junk, &stride, &offset);
+	Graphics::Context->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
 	vs->SetShader();
 	ps->SetShader();
 	
@@ -170,23 +156,16 @@ void Emitter::Draw(std::shared_ptr<Camera> cam)
 	vs->SetMatrix4x4("view", cam->GetView());
 	vs->SetMatrix4x4("projection", cam->GetProjection());
 	vs->SetFloat("currentTime", currentTime);
-	vs->SetShaderResourceView("particles", particleSRV.Get());
 	vs->CopyAllBufferData();
+
+	vs->SetShaderResourceView("particles", particleSRV.Get());
 
 	// Send data to the pixel shader
 	ps->SetFloat3("colorTint", { 1, 1, 1 });
 	ps->CopyAllBufferData();
 
-	// Loop and set any other resources
 	ps->SetShaderResourceView("colorTexture", textureSRV.Get());
 	ps->SetSamplerState("BasicSampler", sampler.Get());
-
-	Graphics::Context->IASetVertexBuffers(0, 1, nullptr, nullptr, nullptr);
-	Graphics::Context->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-	const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
-	Graphics::Context->OMSetBlendState(particleBlendState.Get(), blend_factor, 0xffffffff);
-	Graphics::Context->OMSetDepthStencilState(particleDSS.Get(), 0);
 
 	Graphics::Context->DrawIndexed(numAlive * 6, 0, 0);
 }
