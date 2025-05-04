@@ -72,7 +72,7 @@ Sky::~Sky()
 {
 }
 
-void Sky::Draw(std::shared_ptr<Camera> camera)
+void Sky::Draw(std::shared_ptr<Camera> camera, std::vector<Light> lights, int lightCount)
 {
 	// Change to the sky-specific rasterizer state
 	Graphics::Context->RSSetState(skyRasterState.Get());
@@ -90,6 +90,8 @@ void Sky::Draw(std::shared_ptr<Camera> camera)
 	// Send the proper resources to the pixel shader
 	skyPS->SetShaderResourceView("SkyTexture", skySRV);
 	skyPS->SetSamplerState("BasicSampler", samplerOptions);
+	skyPS->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
+	skyPS->SetInt("lightCount", lightCount);
 
 	// Set mesh buffers and draw
 	skyMesh->SetBuffersAndDraw();

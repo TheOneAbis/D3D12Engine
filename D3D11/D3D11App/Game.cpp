@@ -96,6 +96,8 @@ void Game::Initialize()
 	particleDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // No depth WRITING
 	particleDepthDesc.DepthFunc = D3D11_COMPARISON_LESS; // Standard depth comparison
 	Graphics::Device->CreateDepthStencilState(&particleDepthDesc, particleDSS.GetAddressOf());
+
+	SetupRenderTargets();
 }
 
 
@@ -120,7 +122,6 @@ Game::~Game()
 void Game::LoadAssetsAndCreateEntities()
 {
 	// Create a sampler state for texture sampling options
-	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
 	D3D11_SAMPLER_DESC sampDesc = {};
 	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP; // What happens outside the 0-1 uv range?
 	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -188,8 +189,8 @@ void Game::LoadAssetsAndCreateEntities()
 	pixelShader = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"PixelShader.cso").c_str());
 	pixelShaderPBR = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"PixelShaderPBR.cso").c_str());
 	solidColorPS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"SolidColorPS.cso").c_str());
-	particleVS = std::make_shared<SimpleVertexShader>(Graphics::Device, Graphics::Context, FixPath(L"ParticleVS.cso").c_str());
-	particlePS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"ParticlePS.cso").c_str());
+	triVS = std::make_shared<SimpleVertexShader>(Graphics::Device, Graphics::Context, FixPath(L"TriangleVS.cso").c_str());
+	lightRayPS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"LightRayPS.cso").c_str());
 	std::shared_ptr<SimpleVertexShader> skyVS = std::make_shared<SimpleVertexShader>(Graphics::Device, Graphics::Context, FixPath(L"SkyVS.cso").c_str());
 	std::shared_ptr<SimplePixelShader> skyPS = std::make_shared<SimplePixelShader>(Graphics::Device, Graphics::Context, FixPath(L"SkyPS.cso").c_str());
 
@@ -307,25 +308,25 @@ void Game::LoadAssetsAndCreateEntities()
 	RandomizeEntities();
 
 	// === Create the line up entities =====================================
-	std::shared_ptr<GameEntity> cobSphere = std::make_shared<GameEntity>(sphereMesh, cobbleMat2x);
+	std::shared_ptr<GameEntity> cobSphere = std::make_shared<GameEntity>(cylinderMesh, cobbleMat2x);
 	cobSphere->GetTransform()->SetPosition(-6, 0, 0);
 
-	std::shared_ptr<GameEntity> floorSphere = std::make_shared<GameEntity>(sphereMesh, floorMat);
+	std::shared_ptr<GameEntity> floorSphere = std::make_shared<GameEntity>(cubeMesh, floorMat);
 	floorSphere->GetTransform()->SetPosition(-4, 0, 0);
 
-	std::shared_ptr<GameEntity> paintSphere = std::make_shared<GameEntity>(sphereMesh, paintMat);
+	std::shared_ptr<GameEntity> paintSphere = std::make_shared<GameEntity>(helixMesh, paintMat);
 	paintSphere->GetTransform()->SetPosition(-2, 0, 0);
 
-	std::shared_ptr<GameEntity> scratchSphere = std::make_shared<GameEntity>(sphereMesh, scratchedMat);
+	std::shared_ptr<GameEntity> scratchSphere = std::make_shared<GameEntity>(torusMesh, scratchedMat);
 	scratchSphere->GetTransform()->SetPosition(0, 0, 0);
 
 	std::shared_ptr<GameEntity> bronzeSphere = std::make_shared<GameEntity>(sphereMesh, bronzeMat);
 	bronzeSphere->GetTransform()->SetPosition(2, 0, 0);
 
-	std::shared_ptr<GameEntity> roughSphere = std::make_shared<GameEntity>(sphereMesh, roughMat);
+	std::shared_ptr<GameEntity> roughSphere = std::make_shared<GameEntity>(cubeMesh, roughMat);
 	roughSphere->GetTransform()->SetPosition(4, 0, 0);
 
-	std::shared_ptr<GameEntity> woodSphere = std::make_shared<GameEntity>(sphereMesh, woodMat);
+	std::shared_ptr<GameEntity> woodSphere = std::make_shared<GameEntity>(helixMesh, woodMat);
 	woodSphere->GetTransform()->SetPosition(6, 0, 0);
 
 	entitiesLineup.push_back(cobSphere);
@@ -379,54 +380,67 @@ void Game::LoadAssetsAndCreateEntities()
 		geMetal->GetTransform()->SetPosition(i * 2.0f - 10.0f, 1, 0);
 		geNonMetal->GetTransform()->SetPosition(i * 2.0f - 10.0f, -1, 0);
 	}
+}
 
-	// Create emitters
-	std::shared_ptr<Emitter> stars = std::make_shared<Emitter>(particleVS, particlePS, 8.f, 2.f, star6, sampler);
-	stars->minPos = { -0.5f, 2, -0.5f };
-	stars->maxPos = { 0.5f, 2, 0.5f };
-	stars->minRotation = -XM_PI;
-	stars->maxRotation = XM_PI;
-	stars->minScale = 0.25f;
-	stars->minEndScale = 0.25f;
-	stars->maxScale = 1.f;
-	stars->maxEndScale = 1.f;
-	stars->minVelocity = { -1, 1, -1 };
-	stars->maxVelocity = { 1, 1, 1 };
-	stars->startColor = { 1, 1, 0.5f };
-	stars->endColor = { 1, 0.5f, 1 };
-	emitters.push_back(stars);
+void Game::SetupRenderTargets()
+{
+	if (!Graphics::Device) return;
+	if (sceneTextureRTV)
+	{
+		sceneTextureRTV->Release();
+		sceneTextureSRV->Release();
+	}
 
-	std::shared_ptr<Emitter> fire = std::make_shared<Emitter>(particleVS, particlePS, 15.f, 2.f, fire1, sampler);
-	fire->minPos = { -1.9f, 1, -0.5f };
-	fire->maxPos = { -2.1f, 1, -0.7f };
-	fire->minRotation = 0;
-	fire->maxRotation = XM_PI * 2.f;
-	fire->minScale = 0.1f;
-	fire->maxScale = 0.1f;
-	fire->minEndScale = 2.f;
-	fire->maxEndScale = 2.f;
-	fire->minVelocity = { 0.3f, 1.f, 0.f };
-	fire->maxVelocity = { 0.4f, 0.9f, 0.f };
-	fire->startColor = { 1, 0.6f, 0.23f };
-	fire->endColor = { 1, 0.3f, 0.3f };
-	emitters.push_back(fire);
+	// Set up the Scene Color and Sky Ray Textures and RTVs for volumetric lighting PostProcess
+	D3D11_TEXTURE2D_DESC sceneTexDesc = {};
+	sceneTexDesc.Width = Window::Width();
+	sceneTexDesc.Height = Window::Height();
+	sceneTexDesc.ArraySize = 1;
+	sceneTexDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE; // Need both!
+	sceneTexDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // Might occasionally use other formats
+	sceneTexDesc.MipLevels = 1; // Usually no mip chain needed for render targets
+	sceneTexDesc.MiscFlags = 0;
+	sceneTexDesc.SampleDesc.Count = 1; // Can't be zero
+	Graphics::Device->CreateTexture2D(&sceneTexDesc, 0, sceneTexture.GetAddressOf());
 
-	std::shared_ptr<Emitter> slash = std::make_shared<Emitter>(particleVS, particlePS, 2.f, 1.f, slash1, sampler);
-	slash->minPos = { -1.9f, -1, -1.f };
-	slash->maxPos = { -2.1f, -1.2f, -1.f };
-	slash->minRotation = 0;
-	slash->maxRotation = XM_PI * 2.f;
-	slash->minScale = 0.85f;
-	slash->maxScale = 1.15f;
-	slash->minEndScale = 0.85f;
-	slash->maxEndScale = 1.15f;
-	slash->minVelocity = { -5.f, -5.f, 0.f };
-	slash->maxVelocity = { 5.f, 5.f, 0.f };
-	slash->acceleration = { 0, -10, 0 };
-	slash->minAngularVel = -10;
-	slash->maxAngularVel = 10;
-	slash->burstCount = 10;
-	emitters.push_back(slash);
+	D3D11_RENDER_TARGET_VIEW_DESC sceneTexRTVDesc = {};
+	sceneTexRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D; // This points to a Texture2D
+	sceneTexRTVDesc.Texture2D.MipSlice = 0; // Which mip are we rendering into?
+	sceneTexRTVDesc.Format = sceneTexDesc.Format; // Same format as texture
+	Graphics::Device->CreateRenderTargetView(sceneTexture.Get(), &sceneTexRTVDesc, sceneTextureRTV.GetAddressOf());
+
+	Graphics::Device->CreateShaderResourceView(
+		sceneTexture.Get(), // Texture resource itself
+		0, // Null description = default SRV options
+		sceneTextureSRV.GetAddressOf()); // ComPtr<ID3D11ShaderResourceView>
+
+	if (lightVisRTV)
+	{
+		lightVisRTV->Release();
+		lightVisSRV->Release();
+	}
+
+	D3D11_TEXTURE2D_DESC lightVisDesc = {};
+	lightVisDesc.Width = Window::Width();
+	lightVisDesc.Height = Window::Height();
+	lightVisDesc.ArraySize = 1;
+	lightVisDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE; // Need both!
+	lightVisDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // Might occasionally use other formats
+	lightVisDesc.MipLevels = 1; // Usually no mip chain needed for render targets
+	lightVisDesc.MiscFlags = 0;
+	lightVisDesc.SampleDesc.Count = 1; // Can't be zero
+	Graphics::Device->CreateTexture2D(&lightVisDesc, 0, lightVisTex.GetAddressOf());
+
+	D3D11_RENDER_TARGET_VIEW_DESC lightVisRTVDesc = {};
+	lightVisRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D; // This points to a Texture2D
+	lightVisRTVDesc.Texture2D.MipSlice = 0; // Which mip are we rendering into?
+	lightVisRTVDesc.Format = lightVisDesc.Format; // Same format as texture
+	Graphics::Device->CreateRenderTargetView(lightVisTex.Get(), &lightVisRTVDesc, lightVisRTV.GetAddressOf());
+
+	Graphics::Device->CreateShaderResourceView(
+		lightVisTex.Get(), // Texture resource itself
+		0, // Null description = default SRV options
+		lightVisSRV.GetAddressOf()); // ComPtr<ID3D11ShaderResourceView>
 }
 
 // --------------------------------------------------------
@@ -492,22 +506,8 @@ void Game::GenerateLights()
 	dir1.Color = XMFLOAT3(0.8f, 0.8f, 0.8f);
 	dir1.Intensity = 1.0f;
 
-	Light dir2 = {};
-	dir2.Type = LIGHT_TYPE_DIRECTIONAL;
-	dir2.Direction = XMFLOAT3(-1, -0.25f, 0);
-	dir2.Color = XMFLOAT3(0.2f, 0.2f, 0.2f);
-	dir2.Intensity = 1.0f;
-
-	Light dir3 = {};
-	dir3.Type = LIGHT_TYPE_DIRECTIONAL;
-	dir3.Direction = XMFLOAT3(0, -1, 1);
-	dir3.Color = XMFLOAT3(0.2f, 0.2f, 0.2f);
-	dir3.Intensity = 1.0f;
-
 	// Add light to the list
 	lights.push_back(dir1);
-	lights.push_back(dir2);
-	lights.push_back(dir3);
 
 	// Create the rest of the lights
 	while (lights.size() < MAX_LIGHTS)
@@ -556,6 +556,8 @@ void Game::OnResize()
 {
 	// Update the camera's projection to match the new aspect ratio
 	if (camera) camera->UpdateProjectionMatrix(Window::AspectRatio());
+
+	SetupRenderTargets();
 }
 
 
@@ -670,9 +672,15 @@ void Game::Draw(float deltaTime, float totalTime)
 	{
 		// Clear the back buffer (erase what's on screen) and depth buffer
 		const float color[4] = { 0, 0, 0, 0 };
+		Graphics::Context->ClearRenderTargetView(sceneTextureRTV.Get(), color);
+		Graphics::Context->ClearRenderTargetView(lightVisRTV.Get(), color);
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
+
+	// Set render targets
+	ID3D11RenderTargetView* renderTargets[2] = { sceneTextureRTV.Get(), lightVisRTV.Get() };
+	Graphics::Context->OMSetRenderTargets(2, renderTargets, Graphics::DepthBufferDSV.Get());
 
 	// DRAW geometry
 	// Loop through the game entities and draw each one
@@ -704,23 +712,25 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 
 	// Draw the sky after all regular entities
-	if (lightOptions.ShowSkybox) sky->Draw(camera);
+	if (lightOptions.ShowSkybox) sky->Draw(camera, lights, lightOptions.LightCount);
+
+	// Unbind
+	Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
+	
+	// Post Process
+	triVS->SetShader();
+	lightRayPS->SetShader();
+	lightRayPS->SetShaderResourceView("SceneTexture", sceneTextureSRV);
+	lightRayPS->SetShaderResourceView("LightVisibilityTexture", lightVisSRV);
+	lightRayPS->SetSamplerState("BasicSampler", sampler);
+	lightRayPS->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
+	lightRayPS->SetInt("lightCount", lightOptions.LightCount);
+	lightRayPS->CopyAllBufferData();
+
+	Graphics::Context->Draw(3, 0);
 
 	// Draw the light sources
 	if (lightOptions.DrawLights) DrawLightSources();
-
-	// set blend and depth states for particles
-	const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
-	Graphics::Context->OMSetBlendState(particleBlendState.Get(), blend_factor, 0xffffffff);
-	Graphics::Context->OMSetDepthStencilState(particleDSS.Get(), 0);
-
-	// draw particles
-	for (auto& e : emitters)
-		e->Draw(camera);
-
-	// reset blend and depth states
-	Graphics::Context->OMSetBlendState(0, blend_factor, 0xffffffff);
-	Graphics::Context->OMSetDepthStencilState(0, 0);
 
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME

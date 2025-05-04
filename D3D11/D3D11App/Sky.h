@@ -3,6 +3,7 @@
 #include "Mesh.h"
 #include "SimpleShader.h"
 #include "Camera.h"
+#include "Lights.h"
 
 #include <memory>
 #include <wrl/client.h> // Used for ComPtr
@@ -45,7 +46,7 @@ public:
 
 	~Sky();
 
-	void Draw(std::shared_ptr<Camera> camera);
+	void Draw(std::shared_ptr<Camera> camera, std::vector<Light> lights, int lightCount);
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> GetSkyTexture();
 

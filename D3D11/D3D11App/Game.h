@@ -33,6 +33,7 @@ private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadAssetsAndCreateEntities();
+	void SetupRenderTargets();
 
 	// Helper for creating a solid color texture & SRV
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> CreateSolidColorTextureSRV(int width, int height, DirectX::XMFLOAT4 color);
@@ -62,6 +63,8 @@ private:
 	DemoLightingOptions lightOptions;
 	std::shared_ptr<Mesh> pointLightMesh;
 
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
+
 	// Shaders (for shader swapping between pbr and non-pbr)
 	std::shared_ptr<SimplePixelShader> pixelShader;
 	std::shared_ptr<SimplePixelShader> pixelShaderPBR;
@@ -70,13 +73,21 @@ private:
 	std::shared_ptr<SimplePixelShader> solidColorPS;
 	std::shared_ptr<SimpleVertexShader> vertexShader;
 
-	// Shaders for particles
-	std::shared_ptr<SimpleVertexShader> particleVS;
-	std::shared_ptr<SimplePixelShader> particlePS;
-
 	// Render states for particles
 	bool additive = false;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> particleDSS;
 	Microsoft::WRL::ComPtr<ID3D11BlendState> particleBlendState;
+
+	// For light rays
+	std::shared_ptr<SimpleVertexShader> triVS;
+	std::shared_ptr<SimplePixelShader> lightRayPS;
+
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> sceneTexture;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> sceneTextureRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> sceneTextureSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> lightVisTex;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> lightVisRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> lightVisSRV;
 };
 
