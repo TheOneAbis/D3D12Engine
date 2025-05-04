@@ -89,5 +89,12 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11Texture2D> lightVisTex;
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> lightVisRTV;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> lightVisSRV;
+
+	float numSamples = 32;
+	float density = 0.5f;
+	float exposure = 0.025f;
+	float weight = 1;
+	float decay = 1;
+	float falloff = 100.f;
 };
 

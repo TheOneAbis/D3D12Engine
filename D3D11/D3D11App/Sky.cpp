@@ -72,7 +72,7 @@ Sky::~Sky()
 {
 }
 
-void Sky::Draw(std::shared_ptr<Camera> camera, std::vector<Light> lights, int lightCount)
+void Sky::Draw(std::shared_ptr<Camera> camera, std::vector<Light> lights, int lightCount, float falloff)
 {
 	// Change to the sky-specific rasterizer state
 	Graphics::Context->RSSetState(skyRasterState.Get());
@@ -92,6 +92,9 @@ void Sky::Draw(std::shared_ptr<Camera> camera, std::vector<Light> lights, int li
 	skyPS->SetSamplerState("BasicSampler", samplerOptions);
 	skyPS->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
 	skyPS->SetInt("lightCount", lightCount);
+	skyPS->SetFloat3("camPos", camera->GetTransform()->GetPosition());
+	skyPS->SetFloat("falloff", falloff);
+	skyPS->CopyAllBufferData();
 
 	// Set mesh buffers and draw
 	skyMesh->SetBuffersAndDraw();

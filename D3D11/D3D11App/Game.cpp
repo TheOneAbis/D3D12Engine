@@ -50,7 +50,7 @@ void Game::Initialize()
 
 	// Set up defaults for lighting options
 	lightOptions = {
-		.LightCount = 3,
+		.LightCount = 2,
 		.GammaCorrection = true,
 		.UseAlbedoTexture = true,
 		.UseMetalMap = true,
@@ -502,8 +502,8 @@ void Game::GenerateLights()
 	// Setup directional lights
 	Light dir1 = {};
 	dir1.Type = LIGHT_TYPE_DIRECTIONAL;
-	dir1.Direction = XMFLOAT3(1, -1, 1);
-	dir1.Color = XMFLOAT3(0.8f, 0.8f, 0.8f);
+	dir1.Direction = XMFLOAT3(0, 0, -1);
+	dir1.Color = XMFLOAT3(1.f, 0.9f, 0.6f);
 	dir1.Intensity = 1.0f;
 
 	// Add light to the list
@@ -571,6 +571,12 @@ void Game::Update(float deltaTime, float totalTime)
 	// of the UI could happen at any point during update.
 	UINewFrame(deltaTime);
 	BuildUI(camera, meshes, *currentScene, materials, lights, lightOptions);
+	ImGui::SliderFloat("Num Samples", &numSamples, 1.f, 100.f);
+	ImGui::SliderFloat("Exposure", &exposure, 0.01f, 0.1f);
+	ImGui::SliderFloat("Density", &density, 0.01f, 5.f);
+	ImGui::SliderFloat("Weight", &weight, 0.f, 1.f);
+	ImGui::SliderFloat("Decay", &decay, 0.f, 1.f);
+	ImGui::SliderFloat("Falloff", &falloff, 10.f, 500.f);
 
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
@@ -712,7 +718,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 
 	// Draw the sky after all regular entities
-	if (lightOptions.ShowSkybox) sky->Draw(camera, lights, lightOptions.LightCount);
+	if (lightOptions.ShowSkybox) sky->Draw(camera, lights, lightOptions.LightCount, falloff);
 
 	// Unbind
 	Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
@@ -723,11 +729,64 @@ void Game::Draw(float deltaTime, float totalTime)
 	lightRayPS->SetShaderResourceView("SceneTexture", sceneTextureSRV);
 	lightRayPS->SetShaderResourceView("LightVisibilityTexture", lightVisSRV);
 	lightRayPS->SetSamplerState("BasicSampler", sampler);
-	lightRayPS->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
-	lightRayPS->SetInt("lightCount", lightOptions.LightCount);
+
+	// Calculate all light screen positions
+	std::vector<XMFLOAT2> lightuvs;
+	lightuvs.reserve(lightOptions.LightCount);
+	for (int i = 0; i < lightOptions.LightCount; i++)
+	{
+		XMFLOAT2 newPos;
+		XMFLOAT3 camPos = camera->GetTransform()->GetPosition();
+		XMFLOAT4X4 view = camera->GetView();
+		XMFLOAT4X4 proj = camera->GetProjection();
+		XMMATRIX viewProj = XMMatrixMultiply(XMLoadFloat4x4(&view), XMLoadFloat4x4(&proj));
+		XMVECTOR v, t;
+
+		switch (lights[i].Type)
+		{
+		case LIGHT_TYPE_DIRECTIONAL:
+			v = XMVector4Transform(XMVectorSet(-lights[i].Direction.x, -lights[i].Direction.y, -lights[i].Direction.z, 0), viewProj);
+			break;
+		case LIGHT_TYPE_POINT:
+			t = XMLoadFloat3(&lights[i].Position) - XMLoadFloat3(&camPos);
+			t.m128_f32[3] = 0.f;
+			v = XMVector4Transform(t, viewProj);
+			break;
+		case LIGHT_TYPE_SPOT:
+			t = XMLoadFloat3(&lights[i].Position) - XMLoadFloat3(&camPos);
+			t.m128_f32[3] = 0.f;
+			v = XMVector4Transform(t, viewProj);
+			break;
+		}
+
+		v /= v.m128_f32[3];
+		v *= XMVectorSet(0.5f, -0.5f, 0, 0);
+		v += XMVectorSet(0.5f, 0.5f, 0, 0);
+		XMStoreFloat2(&newPos, v);
+		lightuvs.push_back(newPos);
+	}
+
+	if (lightuvs.size() > 0)
+	{
+		lightRayPS->SetData("lightUVs", &lightuvs[0], sizeof(XMFLOAT2) * (int)lightuvs.size());
+		lightRayPS->SetData("lights", &lights[0], sizeof(Light) * (int)lightuvs.size());
+	}
+	lightRayPS->SetInt("lightCount", lightuvs.size());
+
+	// Customizations
+	lightRayPS->SetInt("numSamples", numSamples);
+	lightRayPS->SetFloat("exposure", exposure);
+	lightRayPS->SetFloat("density", density);
+	lightRayPS->SetFloat("weight", weight);
+	lightRayPS->SetFloat("decay", decay);
+
 	lightRayPS->CopyAllBufferData();
 
 	Graphics::Context->Draw(3, 0);
+
+	// Unbind
+	lightRayPS->SetShaderResourceView("SceneTexture", 0);
+	lightRayPS->SetShaderResourceView("LightVisibilityTexture", 0);
 
 	// Draw the light sources
 	if (lightOptions.DrawLights) DrawLightSources();
