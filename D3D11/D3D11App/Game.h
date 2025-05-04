@@ -73,11 +73,6 @@ private:
 	std::shared_ptr<SimplePixelShader> solidColorPS;
 	std::shared_ptr<SimpleVertexShader> vertexShader;
 
-	// Render states for particles
-	bool additive = false;
-	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> particleDSS;
-	Microsoft::WRL::ComPtr<ID3D11BlendState> particleBlendState;
-
 	// For light rays
 	std::shared_ptr<SimpleVertexShader> triVS;
 	std::shared_ptr<SimplePixelShader> lightRayPS;
@@ -90,11 +85,15 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> lightVisRTV;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> lightVisSRV;
 
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> worldPosTex;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> worldPosRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldPosSRV;
+
 	float numSamples = 32;
 	float density = 0.5f;
-	float exposure = 0.025f;
+	float exposure = 0.01f;
 	float weight = 1;
 	float decay = 1;
-	float falloff = 100.f;
+	float falloff = 10.f;
 };
 

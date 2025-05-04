@@ -2,6 +2,7 @@
 #include "ShaderStructs.hlsli"
 #include "Lighting.hlsli"
 
+#define EPSILON 0.001f
 
 cbuffer ExternalData : register(b0)
 {
@@ -19,7 +20,7 @@ SamplerState BasicSampler	: register(s0);
 struct PSOutput
 {
     float4 color : SV_TARGET0;
-    float4 lightVisColor : SV_TARGET1;
+    float4 lightVisColor : SV_TARGET2;
 };
 
 // --------------------------------------------------------
@@ -39,19 +40,22 @@ PSOutput main(VertexToPixel_Sky input)
     {
         float3 lightNormalDir = normalize(-lights[i].Direction);
         float3 lightNormalPos = normalize(lights[i].Position - camPos);
+        float col = 0;
         
         switch (lights[i].Type)
         {
             case LIGHT_TYPE_DIRECTIONAL:
-                resultColor += pow(saturate(dot(lightNormalDir, normalDir)), falloff) * lights[i].Color;
+                col = pow(saturate(dot(lightNormalDir, normalDir)), falloff);
                 break;
             case LIGHT_TYPE_POINT:
-                resultColor += pow(saturate(dot(lightNormalPos, normalDir)), falloff) * lights[i].Color;
+                col = pow(saturate(dot(lightNormalPos, normalDir)), falloff * (distance(lights[i].Position, camPos) / lights[i].Range));
                 break;
             case LIGHT_TYPE_SPOT:
-                resultColor += pow(saturate(dot(lightNormalPos, normalDir)), falloff) * lights[i].Color;
+                col = pow(saturate(dot(lightNormalPos, normalDir)), falloff * (distance(lights[i].Position, camPos) / lights[i].Range));
                 break;
         }
+        
+        resultColor += col * lights[i].Intensity * lights[i].Color;
     }
     
     output.lightVisColor = float4(resultColor, 1);

@@ -34,10 +34,16 @@ Texture2D RoughnessMap			: register(t2);
 Texture2D MetalMap				: register(t3);
 SamplerState BasicSampler		: register(s0);
 
+struct PSOutput
+{
+    float4 color : SV_TARGET0;
+    float4 worldPos : SV_TARGET1;
+};
+
 // --------------------------------------------------------
 // The entry point (main method) for our pixel shader
 // --------------------------------------------------------
-float4 main(VertexToPixel input) : SV_TARGET
+PSOutput main(VertexToPixel input)
 {
 	// Clean up un-normalized normals
 	input.normal = normalize(input.normal);
@@ -100,5 +106,9 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// Should have the complete light contribution at this point. 
 	// Gamma correct if necessary
 	float3 final = gammaCorrection ? pow(totalLight, 1.0f / 2.2f) : totalLight;
-	return float4(final, 1);
+	
+    PSOutput output;
+	output.color = float4(final, 1);
+    output.worldPos = float4(input.worldPos, 1);
+    return output;
 }

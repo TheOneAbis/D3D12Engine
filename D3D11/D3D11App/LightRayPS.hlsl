@@ -18,7 +18,8 @@ cbuffer ExternalData : register(b0)
 
 // Texture-related resources
 Texture2D SceneTexture : register(t0);
-Texture2D LightVisibilityTexture : register(t1);
+Texture2D WorldPositionTexture : register(t1);
+Texture2D LightVisibilityTexture : register(t2);
 
 SamplerState BasicSampler : register(s0);
 
@@ -48,6 +49,11 @@ float4 main(VertexToPixel input) : SV_TARGET
             float3 sample = LightVisibilityTexture.Sample(BasicSampler, currentUV);
             // Apply sample attenuation scale/decay factors.
             sample *= illuminationDecay * weight;
+            
+            // My gut tells me the way to handle volumetric spot lights is in here somewhere.
+            // Need to get the light's direction into screen space. Even then idk how accurate this will look
+            //sample *= pow(saturate(dot(normalize(input.uv - lightUVs[i]), lights[i].Direction)), lights[i].SpotFalloff); // penumbra
+            
             // Accumulate combined color.
             color += sample;
             // Update exponential decay factor.

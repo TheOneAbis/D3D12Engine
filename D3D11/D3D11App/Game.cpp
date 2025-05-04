@@ -50,7 +50,7 @@ void Game::Initialize()
 
 	// Set up defaults for lighting options
 	lightOptions = {
-		.LightCount = 2,
+		.LightCount = 1,
 		.GammaCorrection = true,
 		.UseAlbedoTexture = true,
 		.UseMetalMap = true,
@@ -58,7 +58,7 @@ void Game::Initialize()
 		.UseRoughnessMap = true,
 		.UsePBR = true,
 		.FreezeLightMovement = false,
-		.DrawLights = true,
+		.DrawLights = false,
 		.ShowSkybox = true,
 		.UseBurleyDiffuse = false,
 		.AmbientColor = XMFLOAT3(0,0,0)
@@ -77,25 +77,6 @@ void Game::Initialize()
 		0.01f,					// Near clip
 		100.0f,					// Far clip
 		CameraProjectionType::Perspective);
-
-	// Blend state description for either additive or alpha blending (based on "additive" boolean)
-	D3D11_BLEND_DESC additiveBlendDesc = {};
-	additiveBlendDesc.RenderTarget[0].BlendEnable = true;
-	additiveBlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD; // Add both colors
-	additiveBlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; // Add both alpha values
-	additiveBlendDesc.RenderTarget[0].SrcBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_SRC_ALPHA;
-	additiveBlendDesc.RenderTarget[0].DestBlend = additive ? D3D11_BLEND_ONE : D3D11_BLEND_INV_SRC_ALPHA;
-	additiveBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	additiveBlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-	additiveBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	Graphics::Device->CreateBlendState(&additiveBlendDesc, particleBlendState.GetAddressOf());
-
-	// Depth state so pixels are occluded by objects but do no occlude other particles
-	D3D11_DEPTH_STENCIL_DESC particleDepthDesc = {};
-	particleDepthDesc.DepthEnable = true; // READ from depth buffer
-	particleDepthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; // No depth WRITING
-	particleDepthDesc.DepthFunc = D3D11_COMPARISON_LESS; // Standard depth comparison
-	Graphics::Device->CreateDepthStencilState(&particleDepthDesc, particleDSS.GetAddressOf());
 
 	SetupRenderTargets();
 }
@@ -309,25 +290,25 @@ void Game::LoadAssetsAndCreateEntities()
 
 	// === Create the line up entities =====================================
 	std::shared_ptr<GameEntity> cobSphere = std::make_shared<GameEntity>(cylinderMesh, cobbleMat2x);
-	cobSphere->GetTransform()->SetPosition(-6, 0, 0);
+	cobSphere->GetTransform()->SetPosition(-10, 0, 0);
 
 	std::shared_ptr<GameEntity> floorSphere = std::make_shared<GameEntity>(cubeMesh, floorMat);
-	floorSphere->GetTransform()->SetPosition(-4, 0, 0);
+	floorSphere->GetTransform()->SetPosition(-7, 0, 0);
 
 	std::shared_ptr<GameEntity> paintSphere = std::make_shared<GameEntity>(helixMesh, paintMat);
-	paintSphere->GetTransform()->SetPosition(-2, 0, 0);
+	paintSphere->GetTransform()->SetPosition(-3, 0, 0);
 
 	std::shared_ptr<GameEntity> scratchSphere = std::make_shared<GameEntity>(torusMesh, scratchedMat);
 	scratchSphere->GetTransform()->SetPosition(0, 0, 0);
 
 	std::shared_ptr<GameEntity> bronzeSphere = std::make_shared<GameEntity>(sphereMesh, bronzeMat);
-	bronzeSphere->GetTransform()->SetPosition(2, 0, 0);
+	bronzeSphere->GetTransform()->SetPosition(3, 0, 0);
 
 	std::shared_ptr<GameEntity> roughSphere = std::make_shared<GameEntity>(cubeMesh, roughMat);
-	roughSphere->GetTransform()->SetPosition(4, 0, 0);
+	roughSphere->GetTransform()->SetPosition(7, 0, 0);
 
 	std::shared_ptr<GameEntity> woodSphere = std::make_shared<GameEntity>(helixMesh, woodMat);
-	woodSphere->GetTransform()->SetPosition(6, 0, 0);
+	woodSphere->GetTransform()->SetPosition(10, 0, 0);
 
 	entitiesLineup.push_back(cobSphere);
 	entitiesLineup.push_back(floorSphere);
@@ -441,6 +422,34 @@ void Game::SetupRenderTargets()
 		lightVisTex.Get(), // Texture resource itself
 		0, // Null description = default SRV options
 		lightVisSRV.GetAddressOf()); // ComPtr<ID3D11ShaderResourceView>
+
+	if (worldPosRTV)
+	{
+		worldPosRTV->Release();
+		worldPosSRV->Release();
+	}
+
+	D3D11_TEXTURE2D_DESC worldPosDesc = {};
+	worldPosDesc.Width = Window::Width();
+	worldPosDesc.Height = Window::Height();
+	worldPosDesc.ArraySize = 1;
+	worldPosDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE; // Need both!
+	worldPosDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	worldPosDesc.MipLevels = 1; // Usually no mip chain needed for render targets
+	worldPosDesc.MiscFlags = 0;
+	worldPosDesc.SampleDesc.Count = 1; // Can't be zero
+	Graphics::Device->CreateTexture2D(&worldPosDesc, 0, worldPosTex.GetAddressOf());
+
+	D3D11_RENDER_TARGET_VIEW_DESC worldPosRTVDesc = {};
+	worldPosRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D; // This points to a Texture2D
+	worldPosRTVDesc.Texture2D.MipSlice = 0; // Which mip are we rendering into?
+	worldPosRTVDesc.Format = worldPosDesc.Format; // Same format as texture
+	Graphics::Device->CreateRenderTargetView(worldPosTex.Get(), &worldPosRTVDesc, worldPosRTV.GetAddressOf());
+
+	Graphics::Device->CreateShaderResourceView(
+		worldPosTex.Get(), // Texture resource itself
+		0, // Null description = default SRV options
+		worldPosSRV.GetAddressOf()); // ComPtr<ID3D11ShaderResourceView>
 }
 
 // --------------------------------------------------------
@@ -504,7 +513,9 @@ void Game::GenerateLights()
 	dir1.Type = LIGHT_TYPE_DIRECTIONAL;
 	dir1.Direction = XMFLOAT3(0, 0, -1);
 	dir1.Color = XMFLOAT3(1.f, 0.9f, 0.6f);
+	dir1.Range = 20.f;
 	dir1.Intensity = 1.0f;
+	dir1.SpotFalloff = 10.f;
 
 	// Add light to the list
 	lights.push_back(dir1);
@@ -577,6 +588,8 @@ void Game::Update(float deltaTime, float totalTime)
 	ImGui::SliderFloat("Weight", &weight, 0.f, 1.f);
 	ImGui::SliderFloat("Decay", &decay, 0.f, 1.f);
 	ImGui::SliderFloat("Falloff", &falloff, 10.f, 500.f);
+	ImGui::Image(lightVisSRV.Get(), ImVec2(512, 512));
+	ImGui::Image(worldPosSRV.Get(), ImVec2(512, 512));
 
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
@@ -680,13 +693,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		const float color[4] = { 0, 0, 0, 0 };
 		Graphics::Context->ClearRenderTargetView(sceneTextureRTV.Get(), color);
 		Graphics::Context->ClearRenderTargetView(lightVisRTV.Get(), color);
+		Graphics::Context->ClearRenderTargetView(worldPosRTV.Get(), color);
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
 	// Set render targets
-	ID3D11RenderTargetView* renderTargets[2] = { sceneTextureRTV.Get(), lightVisRTV.Get() };
-	Graphics::Context->OMSetRenderTargets(2, renderTargets, Graphics::DepthBufferDSV.Get());
+	ID3D11RenderTargetView* renderTargets[3] = { sceneTextureRTV.Get(), worldPosRTV.Get(), lightVisRTV.Get() };
+	Graphics::Context->OMSetRenderTargets(3, renderTargets, Graphics::DepthBufferDSV.Get());
 
 	// DRAW geometry
 	// Loop through the game entities and draw each one
@@ -727,6 +741,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	triVS->SetShader();
 	lightRayPS->SetShader();
 	lightRayPS->SetShaderResourceView("SceneTexture", sceneTextureSRV);
+	lightRayPS->SetShaderResourceView("WorldPositionTexture", worldPosSRV);
 	lightRayPS->SetShaderResourceView("LightVisibilityTexture", lightVisSRV);
 	lightRayPS->SetSamplerState("BasicSampler", sampler);
 
@@ -740,7 +755,8 @@ void Game::Draw(float deltaTime, float totalTime)
 		XMFLOAT4X4 view = camera->GetView();
 		XMFLOAT4X4 proj = camera->GetProjection();
 		XMMATRIX viewProj = XMMatrixMultiply(XMLoadFloat4x4(&view), XMLoadFloat4x4(&proj));
-		XMVECTOR v, t;
+		XMVECTOR t = XMLoadFloat3(&lights[i].Position) - XMLoadFloat3(&camPos);
+		XMVECTOR v;
 
 		switch (lights[i].Type)
 		{
@@ -748,12 +764,10 @@ void Game::Draw(float deltaTime, float totalTime)
 			v = XMVector4Transform(XMVectorSet(-lights[i].Direction.x, -lights[i].Direction.y, -lights[i].Direction.z, 0), viewProj);
 			break;
 		case LIGHT_TYPE_POINT:
-			t = XMLoadFloat3(&lights[i].Position) - XMLoadFloat3(&camPos);
 			t.m128_f32[3] = 0.f;
 			v = XMVector4Transform(t, viewProj);
 			break;
 		case LIGHT_TYPE_SPOT:
-			t = XMLoadFloat3(&lights[i].Position) - XMLoadFloat3(&camPos);
 			t.m128_f32[3] = 0.f;
 			v = XMVector4Transform(t, viewProj);
 			break;
@@ -786,6 +800,7 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	// Unbind
 	lightRayPS->SetShaderResourceView("SceneTexture", 0);
+	lightRayPS->SetShaderResourceView("WorldPositionTexture", 0);
 	lightRayPS->SetShaderResourceView("LightVisibilityTexture", 0);
 
 	// Draw the light sources
