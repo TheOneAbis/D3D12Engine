@@ -7,5 +7,6 @@ Some of the basic setup was written by my professor:
 - Window.h/cpp
 - LightingFunctions.hlsli
 - VToP.hlsli
+- Vertex.h
 
 Check out the Raytracing branch for the raytracing version of this engine.
