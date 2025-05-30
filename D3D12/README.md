@@ -1,2 +1,4 @@
-# D3D1Starter
-Starter code for a D3D11-based project
+# D3D12 Engine
+Here you will find the source code for my D3D12 engine built for a class.
+Some of it is written by my professor. The respective files are credited accordingly.
+Check out the different branches for 
